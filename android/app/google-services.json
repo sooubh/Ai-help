@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "886951217174",
+    "project_id": "ai-help-7",
+    "storage_bucket": "ai-help-7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:886951217174:android:0aa5a4566dd3dfbc730d37",
+        "android_client_info": {
+          "package_name": "com.careai.care_ai"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "886951217174-cut343relvs23kts9m8afgpf0v3u2pp6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAblbXSv-O5_oRgWppqm-u8Zt7h2yN2CaI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "886951217174-cut343relvs23kts9m8afgpf0v3u2pp6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
