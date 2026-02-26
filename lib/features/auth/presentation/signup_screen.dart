@@ -65,6 +65,27 @@ class _SignupScreenState extends State<SignupScreen> {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = await _firebaseService.signInWithGoogle();
+      if (!mounted) return;
+      if (user != null) {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    } on Exception catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -354,14 +375,7 @@ class _SignupScreenState extends State<SignupScreen> {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                              'Google Sign-In — coming after package setup'),
-                        ),
-                      );
-                    },
+                    onPressed: _isLoading ? null : _signInWithGoogle,
                     icon: const Text('G',
                         style: TextStyle(
                           fontSize: 20,

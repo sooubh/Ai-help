@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../models/user_model.dart';
 import '../models/child_profile_model.dart';
 import '../models/chat_message_model.dart';
@@ -64,13 +65,60 @@ class FirebaseService {
     return credential.user;
   }
 
+  /// Sign in with Google. Returns null if user cancels the picker.
+  Future<User?> signInWithGoogle() async {
+    // Trigger the native Google Sign-In flow
+    final googleUser = await GoogleSignIn().signIn();
+    if (googleUser == null) return null; // User cancelled
+
+    // Obtain auth details from the request
+    final googleAuth = await googleUser.authentication;
+
+    // Create a credential for Firebase
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+
+    // Sign in to Firebase with the Google credential
+    final userCredential = await _auth.signInWithCredential(credential);
+    final user = userCredential.user;
+
+    if (user != null) {
+      // Create or update user document (merge so we don't lose existing data)
+      final userDoc = _firestore.collection('users').doc(user.uid);
+      final docSnapshot = await userDoc.get();
+
+      if (!docSnapshot.exists) {
+        // New user — create full profile
+        final userModel = UserModel(
+          uid: user.uid,
+          email: user.email ?? '',
+          displayName: user.displayName,
+          role: 'parent',
+          createdAt: DateTime.now(),
+          lastLoginAt: DateTime.now(),
+        );
+        await userDoc.set(userModel.toMap());
+      } else {
+        // Existing user — just update last login
+        await userDoc.update({
+          'lastLoginAt': Timestamp.fromDate(DateTime.now()),
+        });
+      }
+    }
+
+    return user;
+  }
+
   /// Send password reset email.
   Future<void> resetPassword(String email) async {
     await _auth.sendPasswordResetEmail(email: email.trim());
   }
 
-  /// Sign out.
+  /// Sign out (also signs out of Google).
   Future<void> signOut() async {
+    await GoogleSignIn().signOut();
     await _auth.signOut();
   }
 

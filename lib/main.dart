@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'firebase_options.dart';
 import 'core/config/env_config.dart';
@@ -29,6 +30,13 @@ import 'features/games/presentation/games_hub_screen.dart';
 /// then launches the app with auth-state routing.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Load .env file (try/catch in case it's missing in prod)
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint('No .env file found. Falling back to environment variables.');
+  }
 
   // Initialize Firebase
   await Firebase.initializeApp(

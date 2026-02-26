@@ -49,6 +49,23 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isLoading = true);
+    try {
+      final user = await _firebaseService.signInWithGoogle();
+      if (!mounted) return;
+      if (user != null) {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+      // user == null means cancelled — do nothing
+    } on Exception catch (e) {
+      if (!mounted) return;
+      _showError(e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -390,15 +407,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 // Google button
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () {
-                      // TODO: Implement Google Sign-In
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                              'Google Sign-In — coming after google_sign_in package setup'),
-                        ),
-                      );
-                    },
+                    onPressed: _isLoading ? null : _signInWithGoogle,
                     icon: const Text('G',
                         style: TextStyle(
                           fontSize: 20,
