@@ -1,35 +1,64 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// Model representing a child's profile data.
-/// Stored at: users/{userId}/childProfile/main
+/// Comprehensive model representing a child's profile data.
+/// Stored at: users/{userId}/children/{childId}
+///
+/// Contains all fields specified in PRD §7.2 and §17.1 for
+/// AI-driven personalization and therapy recommendations.
 class ChildProfileModel {
+  final String? id;
   final String name;
   final int age;
-  final String condition;
+  final String? gender;
+  final List<String> conditions;
   final String communicationLevel;
-  final List<String> challenges;
-  final List<String> goals;
+  final List<String> behavioralConcerns;
+  final List<String> sensoryIssues;
+  final String motorSkillLevel;
+  final List<String> learningAbilities;
+  final List<String> parentGoals;
+  final String currentTherapyStatus;
+  final String? medicalNotes;
+  final DateTime createdAt;
   final DateTime updatedAt;
 
   ChildProfileModel({
+    this.id,
     required this.name,
     required this.age,
-    required this.condition,
+    this.gender,
+    required this.conditions,
     required this.communicationLevel,
-    required this.challenges,
-    required this.goals,
-    required this.updatedAt,
-  });
+    required this.behavioralConcerns,
+    required this.sensoryIssues,
+    required this.motorSkillLevel,
+    required this.learningAbilities,
+    required this.parentGoals,
+    required this.currentTherapyStatus,
+    this.medicalNotes,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  })  : createdAt = createdAt ?? DateTime.now(),
+        updatedAt = updatedAt ?? DateTime.now();
 
   /// Create from Firestore document snapshot.
-  factory ChildProfileModel.fromMap(Map<String, dynamic> map) {
+  factory ChildProfileModel.fromMap(Map<String, dynamic> map, [String? id]) {
     return ChildProfileModel(
+      id: id ?? map['id'],
       name: map['name'] ?? '',
       age: map['age'] ?? 0,
-      condition: map['condition'] ?? '',
+      gender: map['gender'],
+      conditions: List<String>.from(map['conditions'] ?? []),
       communicationLevel: map['communicationLevel'] ?? '',
-      challenges: List<String>.from(map['challenges'] ?? []),
-      goals: List<String>.from(map['goals'] ?? []),
+      behavioralConcerns: List<String>.from(map['behavioralConcerns'] ?? []),
+      sensoryIssues: List<String>.from(map['sensoryIssues'] ?? []),
+      motorSkillLevel: map['motorSkillLevel'] ?? 'Unknown',
+      learningAbilities: List<String>.from(map['learningAbilities'] ?? []),
+      parentGoals: List<String>.from(map['parentGoals'] ?? []),
+      currentTherapyStatus: map['currentTherapyStatus'] ?? 'None',
+      medicalNotes: map['medicalNotes'],
+      createdAt:
+          (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt:
           (map['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -38,13 +67,62 @@ class ChildProfileModel {
   /// Convert to Firestore-compatible map.
   Map<String, dynamic> toMap() {
     return {
+      if (id != null) 'id': id,
       'name': name,
       'age': age,
-      'condition': condition,
+      'gender': gender,
+      'conditions': conditions,
       'communicationLevel': communicationLevel,
-      'challenges': challenges,
-      'goals': goals,
+      'behavioralConcerns': behavioralConcerns,
+      'sensoryIssues': sensoryIssues,
+      'motorSkillLevel': motorSkillLevel,
+      'learningAbilities': learningAbilities,
+      'parentGoals': parentGoals,
+      'currentTherapyStatus': currentTherapyStatus,
+      'medicalNotes': medicalNotes,
+      'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
   }
+
+  /// Create a copy with updated fields.
+  ChildProfileModel copyWith({
+    String? id,
+    String? name,
+    int? age,
+    String? gender,
+    List<String>? conditions,
+    String? communicationLevel,
+    List<String>? behavioralConcerns,
+    List<String>? sensoryIssues,
+    String? motorSkillLevel,
+    List<String>? learningAbilities,
+    List<String>? parentGoals,
+    String? currentTherapyStatus,
+    String? medicalNotes,
+  }) {
+    return ChildProfileModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      age: age ?? this.age,
+      gender: gender ?? this.gender,
+      conditions: conditions ?? this.conditions,
+      communicationLevel: communicationLevel ?? this.communicationLevel,
+      behavioralConcerns: behavioralConcerns ?? this.behavioralConcerns,
+      sensoryIssues: sensoryIssues ?? this.sensoryIssues,
+      motorSkillLevel: motorSkillLevel ?? this.motorSkillLevel,
+      learningAbilities: learningAbilities ?? this.learningAbilities,
+      parentGoals: parentGoals ?? this.parentGoals,
+      currentTherapyStatus:
+          currentTherapyStatus ?? this.currentTherapyStatus,
+      medicalNotes: medicalNotes ?? this.medicalNotes,
+      createdAt: createdAt,
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  /// Summary string for AI context injection.
+  String get summaryForAI =>
+      'Name: $name, Age: $age, Conditions: ${conditions.join(", ")}, '
+      'Communication: $communicationLevel, Motor: $motorSkillLevel';
 }

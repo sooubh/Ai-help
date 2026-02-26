@@ -1,0 +1,452 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import '../../../core/constants/app_colors.dart';
+
+/// Progress tracking screen — overview, charts, milestones.
+/// Uses basic Flutter widgets for charts; `fl_chart` can be integrated later.
+class ProgressScreen extends StatelessWidget {
+  const ProgressScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Progress'),
+        actions: [
+          IconButton(
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Report export — coming soon!')),
+              );
+            },
+            icon: const Icon(Icons.share_rounded, size: 22),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 60),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ─── Weekly Summary Card ───────────────────
+            _buildWeeklySummary(context, isDark),
+            const SizedBox(height: 20),
+
+            // ─── Skill Progress Rings ──────────────────
+            _sectionTitle(context, 'Skill Progress'),
+            const SizedBox(height: 12),
+            _buildSkillRings(context, isDark),
+            const SizedBox(height: 24),
+
+            // ─── Activity History ──────────────────────
+            _sectionTitle(context, 'Recent Activities'),
+            const SizedBox(height: 12),
+            _buildActivityHistory(context, isDark),
+            const SizedBox(height: 24),
+
+            // ─── Milestones ────────────────────────────
+            _sectionTitle(context, 'Milestones Achieved'),
+            const SizedBox(height: 12),
+            _buildMilestones(context, isDark),
+            const SizedBox(height: 24),
+
+            // ─── Weekly Trend ──────────────────────────
+            _sectionTitle(context, 'Weekly Activity Trend'),
+            const SizedBox(height: 12),
+            _buildWeeklyTrend(context, isDark),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionTitle(BuildContext context, String title) {
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+    ).animate().fadeIn(duration: 300.ms);
+  }
+
+  Widget _buildWeeklySummary(BuildContext context, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF5B6EF5), Color(0xFF8B5CF6)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF5B6EF5).withValues(alpha: 0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.insights_rounded, color: Colors.white, size: 24),
+              SizedBox(width: 8),
+              Text(
+                'This Week',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _SummaryItem(label: 'Activities', value: '12', icon: Icons.extension_rounded),
+              _SummaryItem(label: 'Minutes', value: '85', icon: Icons.timer_rounded),
+              _SummaryItem(label: 'Streak', value: '5 days', icon: Icons.local_fire_department_rounded),
+            ],
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 500.ms).slideY(
+          begin: 0.05,
+          duration: 500.ms,
+          curve: Curves.easeOutCubic,
+        );
+  }
+
+  Widget _buildSkillRings(BuildContext context, bool isDark) {
+    final skills = [
+      _SkillData('Communication', 0.72, AppColors.primary),
+      _SkillData('Motor Skills', 0.55, AppColors.accent),
+      _SkillData('Social', 0.45, const Color(0xFF10B981)),
+      _SkillData('Sensory', 0.68, AppColors.purple),
+    ];
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: skills.asMap().entries.map((entry) {
+        final skill = entry.value;
+        return Column(
+          children: [
+            SizedBox(
+              width: 64,
+              height: 64,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    value: skill.progress,
+                    backgroundColor: isDark
+                        ? AppColors.darkSurfaceVariant
+                        : AppColors.surfaceVariant,
+                    color: skill.color,
+                    strokeWidth: 6,
+                    strokeCap: StrokeCap.round,
+                  ),
+                  Text(
+                    '${(skill.progress * 100).toInt()}%',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: skill.color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              skill.name,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 11,
+                  ),
+            ),
+          ],
+        ).animate().fadeIn(
+              delay: Duration(milliseconds: 200 + (entry.key * 100)),
+              duration: 400.ms,
+            );
+      }).toList(),
+    );
+  }
+
+  Widget _buildActivityHistory(BuildContext context, bool isDark) {
+    final activities = [
+      _ActivityItem('Picture Card Communication', 'Completed', AppColors.success, '10 min', 'Today'),
+      _ActivityItem('Texture Exploration', 'In Progress', AppColors.warning, '8 min', 'Today'),
+      _ActivityItem('Block Stacking', 'Completed', AppColors.success, '10 min', 'Yesterday'),
+      _ActivityItem('Emotion Matching', 'Skipped', AppColors.textTertiary, '—', 'Yesterday'),
+      _ActivityItem('Breathing Exercise', 'Completed', AppColors.success, '5 min', '2 days ago'),
+    ];
+
+    return Column(
+      children: activities.asMap().entries.map((entry) {
+        final activity = entry.value;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: isDark
+                ? AppColors.darkCardBackground
+                : AppColors.cardBackground,
+            borderRadius: BorderRadius.circular(14),
+            border: isDark
+                ? Border.all(color: AppColors.darkBorder.withValues(alpha: 0.2))
+                : null,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: activity.statusColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      activity.title,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
+                    ),
+                    Text(
+                      '${activity.status} • ${activity.duration} • ${activity.date}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontSize: 11,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ).animate().fadeIn(
+              delay: Duration(milliseconds: 100 * entry.key),
+              duration: 300.ms,
+            );
+      }).toList(),
+    );
+  }
+
+  Widget _buildMilestones(BuildContext context, bool isDark) {
+    final milestones = [
+      _MilestoneData('First Word!', 'Communication', '🗣️', '3 days ago'),
+      _MilestoneData('Stacked 5 Blocks', 'Motor Skills', '🧱', '1 week ago'),
+      _MilestoneData('Shared a Toy', 'Social Skills', '🤝', '2 weeks ago'),
+    ];
+
+    return Column(
+      children: milestones.asMap().entries.map((entry) {
+        final milestone = entry.value;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppColors.accent.withValues(alpha: isDark ? 0.15 : 0.08),
+                Colors.transparent,
+              ],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: AppColors.accent.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Row(
+            children: [
+              Text(milestone.emoji, style: const TextStyle(fontSize: 28)),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      milestone.title,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    Text(
+                      '${milestone.category} • ${milestone.date}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.emoji_events_rounded,
+                color: AppColors.accent,
+                size: 24,
+              ),
+            ],
+          ),
+        ).animate().fadeIn(
+              delay: Duration(milliseconds: 200 + (entry.key * 100)),
+              duration: 400.ms,
+            );
+      }).toList(),
+    );
+  }
+
+  Widget _buildWeeklyTrend(BuildContext context, bool isDark) {
+    // Simple bar chart using basic widgets
+    final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final values = [0.6, 0.8, 0.4, 1.0, 0.7, 0.3, 0.0];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppColors.darkCardBackground
+            : AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(18),
+        border: isDark
+            ? Border.all(color: AppColors.darkBorder.withValues(alpha: 0.2))
+            : null,
+      ),
+      child: Column(
+        children: [
+          SizedBox(
+            height: 120,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: days.asMap().entries.map((entry) {
+                final index = entry.key;
+                final value = values[index];
+                return Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Container(
+                      width: 28,
+                      height: (100 * value).clamp(4, 100),
+                      decoration: BoxDecoration(
+                        gradient: value > 0
+                            ? LinearGradient(
+                                colors: [
+                                  AppColors.primary.withValues(alpha: 0.7),
+                                  AppColors.primary,
+                                ],
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                              )
+                            : null,
+                        color: value == 0
+                            ? (isDark
+                                ? AppColors.darkSurfaceVariant
+                                : AppColors.surfaceVariant)
+                            : null,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ).animate().fadeIn(
+                          delay: Duration(milliseconds: 300 + (index * 60)),
+                          duration: 400.ms,
+                        ),
+                  ],
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: days.map((d) {
+              return Text(
+                d,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontSize: 11,
+                    ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(delay: 400.ms, duration: 500.ms);
+  }
+}
+
+// ─── Data Classes ──────────────────────────────────────────
+
+class _SummaryItem extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+
+  const _SummaryItem({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Icon(icon, color: Colors.white.withValues(alpha: 0.7), size: 20),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.7),
+            fontSize: 11,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SkillData {
+  final String name;
+  final double progress;
+  final Color color;
+
+  const _SkillData(this.name, this.progress, this.color);
+}
+
+class _ActivityItem {
+  final String title;
+  final String status;
+  final Color statusColor;
+  final String duration;
+  final String date;
+
+  const _ActivityItem(this.title, this.status, this.statusColor, this.duration, this.date);
+}
+
+class _MilestoneData {
+  final String title;
+  final String category;
+  final String emoji;
+  final String date;
+
+  const _MilestoneData(this.title, this.category, this.emoji, this.date);
+}
