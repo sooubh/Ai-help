@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/utils/validators.dart';
 import '../../../models/child_profile_model.dart';
 import '../../../services/firebase_service.dart';
-import '../../../widgets/custom_button.dart';
 import '../../../widgets/custom_text_field.dart';
 
-/// Profile setup screen — collects child details and saves to Firestore.
+/// Multi-step child profile setup wizard.
+/// Collects all PRD-required fields for AI personalization.
 class ProfileSetupScreen extends StatefulWidget {
   const ProfileSetupScreen({super.key});
 
@@ -19,110 +20,129 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _firebaseService = FirebaseService();
 
+  // Controllers
   final _nameController = TextEditingController();
   final _ageController = TextEditingController();
-  final _challengesController = TextEditingController();
-  final _goalsController = TextEditingController();
 
-  String? _selectedCondition;
+  // Selections
+  String? _selectedGender;
   String? _selectedCommunicationLevel;
+  String? _selectedMotorSkillLevel;
+  String? _selectedTherapyStatus;
+
+  // Multi-select lists
+  final List<String> _selectedConditions = [];
+  final List<String> _selectedBehaviors = [];
+  final List<String> _selectedSensory = [];
+  final List<String> _selectedGoals = [];
+
   bool _isLoading = false;
 
   @override
   void dispose() {
     _nameController.dispose();
     _ageController.dispose();
-    _challengesController.dispose();
-    _goalsController.dispose();
     super.dispose();
   }
 
   Future<void> _saveProfile() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedCondition == null || _selectedCommunicationLevel == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select condition and communication level'),
-          backgroundColor: AppColors.alert,
-        ),
-      );
+    if (_selectedConditions.isEmpty) {
+      _showError('Please select at least one condition');
+      return;
+    }
+    if (_selectedCommunicationLevel == null) {
+      _showError('Please select communication level');
       return;
     }
 
     setState(() => _isLoading = true);
     try {
-      // Parse comma-separated challenges and goals into lists
-      final challenges = _challengesController.text
-          .split(',')
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toList();
-      final goals = _goalsController.text
-          .split(',')
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toList();
-
       final profile = ChildProfileModel(
         name: _nameController.text.trim(),
         age: int.parse(_ageController.text.trim()),
-        condition: _selectedCondition!,
+        gender: _selectedGender,
+        conditions: _selectedConditions,
         communicationLevel: _selectedCommunicationLevel!,
-        challenges: challenges,
-        goals: goals,
-        updatedAt: DateTime.now(),
+        behavioralConcerns: _selectedBehaviors,
+        sensoryIssues: _selectedSensory,
+        motorSkillLevel: _selectedMotorSkillLevel ?? 'Unknown',
+        learningAbilities: [],
+        parentGoals: _selectedGoals,
+        currentTherapyStatus: _selectedTherapyStatus ?? 'Not currently in therapy',
       );
 
       await _firebaseService.saveChildProfile(profile);
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile saved! 🎉'),
+          backgroundColor: AppColors.success,
+        ),
+      );
       Navigator.pushReplacementNamed(context, '/home');
     } on Exception catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString()),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      _showError(e.toString().replaceAll('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: AppColors.error),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.profileSetup)),
+      appBar: AppBar(
+        title: const Text(AppStrings.profileSetup),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(20),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Heading
+                // Header
                 Text(
                   'Tell us about your child',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ).animate().fadeIn(duration: 400.ms),
                 const SizedBox(height: 4),
                 Text(
-                  'This helps us personalize guidance for you.',
+                  'This helps us personalize guidance and activities.',
                   style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 28),
+                ).animate().fadeIn(delay: 100.ms, duration: 400.ms),
 
-                // Child name
+                const SizedBox(height: 24),
+
+                // ── Basic Info ────────────────────────────────
+                _sectionTitle('Basic Information', Icons.person_rounded),
+                const SizedBox(height: 12),
+
                 CustomTextField(
                   label: AppStrings.childName,
                   controller: _nameController,
                   prefixIcon: Icons.person_outlined,
-                  validator: (v) => Validators.required(v, 'Child\'s name'),
+                  validator: (v) => Validators.required(v, "Child's name"),
                   textInputAction: TextInputAction.next,
                 ),
+                const SizedBox(height: 4),
 
-                // Age
                 CustomTextField(
                   label: AppStrings.childAge,
                   controller: _ageController,
@@ -131,79 +151,273 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   validator: Validators.age,
                   textInputAction: TextInputAction.next,
                 ),
+                const SizedBox(height: 4),
 
-                // Condition dropdown
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _selectedCondition,
-                    decoration: const InputDecoration(
-                      labelText: AppStrings.condition,
-                      prefixIcon: Icon(Icons.medical_information_outlined),
+                _buildDropdown(
+                  label: AppStrings.childGender,
+                  value: _selectedGender,
+                  items: AppStrings.genders,
+                  icon: Icons.wc_outlined,
+                  onChanged: (v) => setState(() => _selectedGender = v),
+                ),
+
+                const SizedBox(height: 20),
+
+                // ── Conditions ────────────────────────────────
+                _sectionTitle('Conditions', Icons.medical_information_rounded),
+                const SizedBox(height: 8),
+                _buildMultiSelect(
+                  label: 'Select all that apply:',
+                  options: AppStrings.commonConditions,
+                  selected: _selectedConditions,
+                  isDark: isDark,
+                ),
+
+                const SizedBox(height: 20),
+
+                // ── Communication ─────────────────────────────
+                _sectionTitle('Communication', Icons.chat_rounded),
+                const SizedBox(height: 12),
+                _buildDropdown(
+                  label: AppStrings.communicationLevel,
+                  value: _selectedCommunicationLevel,
+                  items: AppStrings.communicationLevels,
+                  icon: Icons.record_voice_over_outlined,
+                  onChanged: (v) => setState(() => _selectedCommunicationLevel = v),
+                  isRequired: true,
+                ),
+
+                const SizedBox(height: 20),
+
+                // ── Behavioral Concerns ───────────────────────
+                _sectionTitle('Behavioral Concerns', Icons.psychology_rounded),
+                const SizedBox(height: 8),
+                _buildMultiSelect(
+                  label: 'Select any concerns:',
+                  options: AppStrings.commonBehavioralConcerns,
+                  selected: _selectedBehaviors,
+                  isDark: isDark,
+                ),
+
+                const SizedBox(height: 20),
+
+                // ── Sensory Issues ────────────────────────────
+                _sectionTitle('Sensory Sensitivities', Icons.sensors_rounded),
+                const SizedBox(height: 8),
+                _buildMultiSelect(
+                  label: 'Select any sensitivities:',
+                  options: AppStrings.commonSensoryIssues,
+                  selected: _selectedSensory,
+                  isDark: isDark,
+                ),
+
+                const SizedBox(height: 20),
+
+                // ── Motor Skills ──────────────────────────────
+                _sectionTitle('Motor Skills', Icons.accessibility_new_rounded),
+                const SizedBox(height: 12),
+                _buildDropdown(
+                  label: AppStrings.motorSkills,
+                  value: _selectedMotorSkillLevel,
+                  items: AppStrings.motorSkillLevels,
+                  icon: Icons.accessibility_new_outlined,
+                  onChanged: (v) => setState(() => _selectedMotorSkillLevel = v),
+                ),
+
+                const SizedBox(height: 20),
+
+                // ── Parent Goals ──────────────────────────────
+                _sectionTitle('Your Goals', Icons.flag_rounded),
+                const SizedBox(height: 8),
+                _buildMultiSelect(
+                  label: 'What do you want to focus on?',
+                  options: AppStrings.commonParentGoals,
+                  selected: _selectedGoals,
+                  isDark: isDark,
+                ),
+
+                const SizedBox(height: 20),
+
+                // ── Therapy Status ────────────────────────────
+                _sectionTitle('Current Therapy', Icons.health_and_safety_rounded),
+                const SizedBox(height: 12),
+                _buildDropdown(
+                  label: AppStrings.currentTherapy,
+                  value: _selectedTherapyStatus,
+                  items: AppStrings.therapyStatuses,
+                  icon: Icons.local_hospital_outlined,
+                  onChanged: (v) => setState(() => _selectedTherapyStatus = v),
+                ),
+
+                const SizedBox(height: 32),
+
+                // ── Save Button ───────────────────────────────
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton.icon(
+                    onPressed: _isLoading ? null : _saveProfile,
+                    icon: _isLoading
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.check_circle_rounded),
+                    label: Text(
+                      _isLoading ? 'Saving...' : AppStrings.saveProfile,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    items: AppStrings.commonConditions
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                        .toList(),
-                    onChanged: (v) =>
-                        setState(() => _selectedCondition = v),
-                    validator: (v) =>
-                        v == null ? 'Please select a condition' : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.accent,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: 0,
+                    ),
                   ),
                 ),
 
-                // Communication level dropdown
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _selectedCommunicationLevel,
-                    decoration: const InputDecoration(
-                      labelText: AppStrings.communicationLevel,
-                      prefixIcon: Icon(Icons.chat_outlined),
-                    ),
-                    items: AppStrings.communicationLevels
-                        .map((l) => DropdownMenuItem(value: l, child: Text(l)))
-                        .toList(),
-                    onChanged: (v) =>
-                        setState(() => _selectedCommunicationLevel = v),
-                    validator: (v) =>
-                        v == null ? 'Please select communication level' : null,
-                  ),
-                ),
-
-                // Challenges
-                CustomTextField(
-                  label: AppStrings.challenges,
-                  hint: 'e.g., Tantrums, Sensory issues (comma separated)',
-                  controller: _challengesController,
-                  prefixIcon: Icons.warning_amber_outlined,
-                  maxLines: 2,
-                  textInputAction: TextInputAction.next,
-                ),
-
-                // Goals
-                CustomTextField(
-                  label: AppStrings.parentGoals,
-                  hint: 'e.g., Better communication, Calmer routines',
-                  controller: _goalsController,
-                  prefixIcon: Icons.flag_outlined,
-                  maxLines: 2,
-                  textInputAction: TextInputAction.done,
-                ),
-
-                const SizedBox(height: 16),
-
-                // Save button
-                CustomButton(
-                  text: AppStrings.saveProfile,
-                  onPressed: _saveProfile,
-                  isLoading: _isLoading,
-                  icon: Icons.check_circle_outline,
-                ),
+                const SizedBox(height: 24),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  // ─── Helper Widgets ──────────────────────────────────────────
+
+  Widget _sectionTitle(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: AppColors.primary),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+              ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDropdown({
+    required String label,
+    required String? value,
+    required List<String> items,
+    required IconData icon,
+    required ValueChanged<String?> onChanged,
+    bool isRequired = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DropdownButtonFormField<String>(
+        initialValue: value,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon),
+        ),
+        items: items
+            .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+            .toList(),
+        onChanged: onChanged,
+        validator: isRequired
+            ? (v) => v == null ? 'Please select $label' : null
+            : null,
+      ),
+    );
+  }
+
+  Widget _buildMultiSelect({
+    required String label,
+    required List<String> options,
+    required List<String> selected,
+    required bool isDark,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: options.map((option) {
+            final isSelected = selected.contains(option);
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  if (isSelected) {
+                    selected.remove(option);
+                  } else {
+                    selected.add(option);
+                  }
+                });
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.primary.withValues(alpha: 0.12)
+                      : (isDark
+                          ? AppColors.darkSurfaceVariant
+                          : AppColors.surfaceVariant),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isSelected
+                        ? AppColors.primary
+                        : Colors.transparent,
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isSelected)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 6),
+                        child: Icon(
+                          Icons.check_circle_rounded,
+                          size: 16,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    Text(
+                      option,
+                      style: TextStyle(
+                        color: isSelected
+                            ? AppColors.primary
+                            : (isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.textSecondary),
+                        fontSize: 13,
+                        fontWeight:
+                            isSelected ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 }

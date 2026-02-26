@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
-import '../../../models/chat_message_model.dart';
-import '../../../services/firebase_service.dart';
 import '../../../services/ai_service.dart';
+import '../../../services/firebase_service.dart';
 import '../../../services/tts_service.dart';
+import '../../../models/chat_message_model.dart';
 
-/// AI Chat screen with message bubbles, text input, and TTS.
+/// Premium AI Chat screen with Gemini integration,
+/// streaming responses, voice output, and safety disclaimer.
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
 
@@ -15,244 +18,512 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final _messageController = TextEditingController();
-  final _scrollController = ScrollController();
-  final _firebaseService = FirebaseService();
-  final _aiService = AiService();
-  final _ttsService = TtsService();
-  bool _isSending = false;
+  final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final FirebaseService _firebaseService = FirebaseService();
+  final TtsService _ttsService = TtsService();
+
+  final List<_ChatMsg> _messages = [];
+  bool _isTyping = false;
+  bool _ttsEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initChat();
+  }
+
+  Future<void> _initChat() async {
+    // Capture reference before async gap
+    final aiService = context.read<AiService>();
+    final profile = await _firebaseService.getChildProfile();
+    aiService.startChatSession(childProfile: profile);
+
+    // Add welcome message
+    _messages.add(_ChatMsg(
+      text: AppStrings.chatWelcome,
+      isUser: false,
+    ));
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _sendMessage() async {
+    final text = _messageController.text.trim();
+    if (text.isEmpty || _isTyping) return;
+
+    // Add user message
+    setState(() {
+      _messages.add(_ChatMsg(text: text, isUser: true));
+      _isTyping = true;
+    });
+    _messageController.clear();
+    _scrollToBottom();
+
+    // Capture AI service reference before async gap
+    final aiService = context.read<AiService>();
+
+    // Save user message to Firestore
+    await _firebaseService.sendChatMessage(ChatMessageModel(
+      id: '',
+      message: text,
+      sender: 'user',
+      timestamp: DateTime.now(),
+    ));
+
+    // Get AI response
+    try {
+      final response = await aiService.getResponse(text);
+
+      if (!mounted) return;
+
+      setState(() {
+        _messages.add(_ChatMsg(text: response, isUser: false));
+        _isTyping = false;
+      });
+
+      // Save AI response to Firestore
+      await _firebaseService.sendChatMessage(ChatMessageModel(
+        id: '',
+        message: response,
+        sender: 'ai',
+        timestamp: DateTime.now(),
+      ));
+
+      // Speak response if TTS is enabled
+      if (_ttsEnabled) {
+        _ttsService.speak(response);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _messages.add(_ChatMsg(
+          text: 'Sorry, I encountered an error. Please try again.',
+          isUser: false,
+        ));
+        _isTyping = false;
+      });
+    }
+
+    _scrollToBottom();
+  }
+
+  void _scrollToBottom() {
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
+  }
 
   @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
-    _ttsService.dispose();
+    _ttsService.stop();
     super.dispose();
-  }
-
-  /// Send user message, get AI response, save both to Firestore.
-  Future<void> _sendMessage() async {
-    final text = _messageController.text.trim();
-    if (text.isEmpty || _isSending) return;
-
-    _messageController.clear();
-    setState(() => _isSending = true);
-
-    try {
-      // Save user message
-      final userMsg = ChatMessageModel(
-        id: '',
-        message: text,
-        sender: 'user',
-        timestamp: DateTime.now(),
-      );
-      await _firebaseService.sendChatMessage(userMsg);
-
-      // Get AI response
-      final aiResponse = await _aiService.getResponse(text);
-
-      // Save AI message
-      final aiMsg = ChatMessageModel(
-        id: '',
-        message: aiResponse,
-        sender: 'ai',
-        timestamp: DateTime.now(),
-      );
-      await _firebaseService.sendChatMessage(aiMsg);
-    } on Exception catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _isSending = false);
-    }
-  }
-
-  void _scrollToBottom() {
-    if (_scrollController.hasClients) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
-    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(AppStrings.chatTitle),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
+      appBar: _buildAppBar(isDark),
       body: Column(
         children: [
-          // Chat messages list
+          // Disclaimer banner
+          _buildDisclaimerBanner(isDark),
+
+          // Messages area
           Expanded(
-            child: StreamBuilder<List<ChatMessageModel>>(
-              stream: _firebaseService.getChatMessages(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final messages = snapshot.data ?? [];
-
-                if (messages.isEmpty) {
-                  return _buildEmptyState();
-                }
-
-                // Auto-scroll when new messages arrive
-                WidgetsBinding.instance
-                    .addPostFrameCallback((_) => _scrollToBottom());
-
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+            child: _messages.isEmpty && !_isTyping
+                ? _buildSuggestedPrompts(isDark)
+                : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    itemCount: _messages.length + (_isTyping ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index == _messages.length && _isTyping) {
+                        return _buildTypingIndicator(isDark);
+                      }
+                      return _buildMessageBubble(
+                          _messages[index], isDark, index);
+                    },
                   ),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) =>
-                      _ChatBubble(
-                        message: messages[index],
-                        onSpeak: () =>
-                            _ttsService.speak(messages[index].message),
-                      ),
-                );
-              },
-            ),
           ),
 
-          // Sending indicator
-          if (_isSending)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'AI is thinking...',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          fontStyle: FontStyle.italic,
-                        ),
-                  ),
-                ],
-              ),
-            ),
-
-          // Input bar
-          _buildInputBar(),
+          // Input area
+          _buildInputArea(isDark),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(40),
+  PreferredSizeWidget _buildAppBar(bool isDark) {
+    return AppBar(
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF5B6EF5), Color(0xFFA855F7)],
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.smart_toy_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 10),
+          const Text(AppStrings.chatTitle),
+        ],
+      ),
+      actions: [
+        // TTS toggle
+        IconButton(
+          onPressed: () {
+            setState(() => _ttsEnabled = !_ttsEnabled);
+            if (!_ttsEnabled) _ttsService.stop();
+          },
+          icon: Icon(
+            _ttsEnabled
+                ? Icons.volume_up_rounded
+                : Icons.volume_off_rounded,
+            size: 22,
+          ),
+          tooltip: _ttsEnabled ? 'Mute voice' : 'Enable voice',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDisclaimerBanner(bool isDark) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: isDark
+          ? AppColors.darkSurfaceVariant.withValues(alpha: 0.5)
+          : AppColors.warningLight.withValues(alpha: 0.5),
+      child: Row(
+        children: [
+          const Icon(Icons.shield_rounded,
+              color: AppColors.warning, size: 14),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              AppStrings.disclaimerShort,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 10,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(_ChatMsg message, bool isDark, int index) {
+    final isUser = message.isUser;
+
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.78,
+        ),
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isUser
+              ? AppColors.primary
+              : (isDark ? AppColors.darkCardBackground : AppColors.aiBubble),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(18),
+            topRight: const Radius.circular(18),
+            bottomLeft: isUser
+                ? const Radius.circular(18)
+                : const Radius.circular(4),
+            bottomRight: isUser
+                ? const Radius.circular(4)
+                : const Radius.circular(18),
+          ),
+          border: !isUser && isDark
+              ? Border.all(
+                  color: AppColors.darkBorder.withValues(alpha: 0.3))
+              : null,
+        ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.chat_bubble_outline_rounded,
-              size: 72,
-              color: AppColors.primary.withValues(alpha: 0.3),
+            if (!isUser)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.smart_toy_rounded,
+                      size: 12,
+                      color: isDark
+                          ? AppColors.primaryLight
+                          : AppColors.primary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'CARE-AI',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: isDark
+                            ? AppColors.primaryLight
+                            : AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            SelectableText(
+              message.text,
+              style: TextStyle(
+                color: isUser
+                    ? Colors.white
+                    : (isDark
+                        ? AppColors.darkTextPrimary
+                        : AppColors.textPrimary),
+                fontSize: 14,
+                height: 1.5,
+              ),
             ),
-            const SizedBox(height: 20),
-            Text(
-              'How can I help you today?',
-              style: Theme.of(context).textTheme.titleLarge,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Ask me anything about your child\'s care, '
-              'activities, or behavioral strategies.',
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
+            // TTS button for AI messages
+            if (!isUser)
+              Align(
+                alignment: Alignment.centerRight,
+                child: GestureDetector(
+                  onTap: () => _ttsService.speak(message.text),
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Icon(
+                      Icons.volume_up_rounded,
+                      size: 16,
+                      color: isDark
+                          ? AppColors.darkTextTertiary
+                          : AppColors.textTertiary,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    ).animate().fadeIn(duration: 300.ms).slideX(
+          begin: isUser ? 0.05 : -0.05,
+          duration: 300.ms,
+          curve: Curves.easeOutCubic,
+        );
+  }
+
+  Widget _buildTypingIndicator(bool isDark) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkCardBackground : AppColors.aiBubble,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(18),
+            topRight: Radius.circular(18),
+            bottomRight: Radius.circular(18),
+            bottomLeft: Radius.circular(4),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _TypingDot(delay: 0.ms),
+            const SizedBox(width: 4),
+            _TypingDot(delay: 200.ms),
+            const SizedBox(width: 4),
+            _TypingDot(delay: 400.ms),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildInputBar() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
+  Widget _buildSuggestedPrompts(bool isDark) {
+    const prompts = [
+      '💬 How can I help my child with speech?',
+      '🧸 Sensory-friendly activities for today',
+      '😴 Tips for better sleep routines',
+      '🌪️ How to handle meltdowns calmly',
+      '📈 What milestones should I watch for?',
+      '🎮 Fun games to build motor skills',
+    ];
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          const SizedBox(height: 24),
+          Icon(Icons.smart_toy_rounded,
+              size: 56,
+              color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary),
+          const SizedBox(height: 16),
+          Text(
+            'Hi! I\'m your CARE-AI assistant',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Ask me anything about your child\'s development',
+            style: Theme.of(context).textTheme.bodySmall,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 28),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Try asking:',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: prompts.map((prompt) {
+              return GestureDetector(
+                onTap: () {
+                  _messageController.text = prompt;
+                  _sendMessage();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? AppColors.darkSurfaceVariant
+                        : AppColors.primarySurface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.15),
+                    ),
+                  ),
+                  child: Text(
+                    prompt,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildInputArea(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.surface,
+        border: Border(
+          top: BorderSide(
+            color: isDark ? AppColors.darkDivider : AppColors.divider,
+            width: 0.5,
+          ),
+        ),
+      ),
       child: SafeArea(
-        top: false,
         child: Row(
           children: [
-            // Text input
             Expanded(
-              child: TextField(
-                controller: _messageController,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _sendMessage(),
-                maxLines: 3,
-                minLines: 1,
-                style: const TextStyle(fontSize: 16),
-                decoration: InputDecoration(
-                  hintText: AppStrings.typeMessage,
-                  filled: true,
-                  fillColor: AppColors.background,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: BorderSide.none,
-                  ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? AppColors.darkSurfaceVariant
+                      : AppColors.surfaceVariant,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _messageController,
+                        maxLines: 4,
+                        minLines: 1,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _sendMessage(),
+                        style: TextStyle(
+                          color: isDark
+                              ? AppColors.darkTextPrimary
+                              : AppColors.textPrimary,
+                          fontSize: 14,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: AppStrings.typeMessage,
+                          hintStyle: TextStyle(
+                            color: isDark
+                                ? AppColors.darkTextTertiary
+                                : AppColors.textTertiary,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding:
+                              const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
             const SizedBox(width: 8),
-
             // Send button
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: IconButton(
-                onPressed: _isSending ? null : _sendMessage,
-                icon: const Icon(Icons.send_rounded, color: Colors.white),
+            GestureDetector(
+              onTap: _sendMessage,
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  gradient: _isTyping
+                      ? null
+                      : const LinearGradient(
+                          colors: [Color(0xFF5B6EF5), Color(0xFFA855F7)],
+                        ),
+                  color: _isTyping
+                      ? (isDark
+                          ? AppColors.darkSurfaceVariant
+                          : AppColors.surfaceVariant)
+                      : null,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Icon(
+                  Icons.send_rounded,
+                  color: _isTyping
+                      ? AppColors.textTertiary
+                      : Colors.white,
+                  size: 22,
+                ),
               ),
             ),
           ],
@@ -262,112 +533,37 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
-/// Individual chat message bubble.
-class _ChatBubble extends StatelessWidget {
-  final ChatMessageModel message;
-  final VoidCallback onSpeak;
+// ─── Helper Classes ──────────────────────────────────────────
 
-  const _ChatBubble({required this.message, required this.onSpeak});
+class _ChatMsg {
+  final String text;
+  final bool isUser;
+
+  const _ChatMsg({required this.text, required this.isUser});
+}
+
+class _TypingDot extends StatelessWidget {
+  final Duration delay;
+
+  const _TypingDot({required this.delay});
 
   @override
   Widget build(BuildContext context) {
-    final isUser = message.isUser;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        mainAxisAlignment:
-            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          // AI avatar
-          if (!isUser) ...[
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: AppColors.primary,
-              child: const Icon(
-                Icons.smart_toy_rounded,
-                size: 18,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-
-          // Bubble
-          Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
-              decoration: BoxDecoration(
-                color: isUser ? AppColors.userBubble : AppColors.aiBubble,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(20),
-                  topRight: const Radius.circular(20),
-                  bottomLeft: Radius.circular(isUser ? 20 : 4),
-                  bottomRight: Radius.circular(isUser ? 4 : 20),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    message.message,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: isUser ? Colors.white : AppColors.textPrimary,
-                      height: 1.4,
-                    ),
-                  ),
-
-                  // TTS button for AI messages
-                  if (!isUser) ...[
-                    const SizedBox(height: 6),
-                    GestureDetector(
-                      onTap: onSpeak,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.volume_up_rounded,
-                            size: 16,
-                            color: AppColors.primary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Listen',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-
-          // User avatar
-          if (isUser) ...[
-            const SizedBox(width: 8),
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: AppColors.secondary,
-              child: const Icon(
-                Icons.person_rounded,
-                size: 18,
-                color: Colors.white,
-              ),
-            ),
-          ],
-        ],
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+        shape: BoxShape.circle,
       ),
-    );
+    )
+        .animate(onPlay: (c) => c.repeat())
+        .fadeIn(delay: delay, duration: 300.ms)
+        .then()
+        .fadeOut(duration: 300.ms)
+        .then()
+        .fadeIn(duration: 300.ms);
   }
 }
