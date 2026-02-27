@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../services/firebase_service.dart';
+import '../../../services/cloud_functions_service.dart';
 
-/// Daily Plan screen — personalized timeline of today's activities.
-/// Shows activities with status (pending/done/skipped), timing, and actions.
+/// Daily Plan screen — loads today's plan from Firestore.
+/// Falls back to auto-generated plan from child profile if none saved.
 class DailyPlanScreen extends StatefulWidget {
   const DailyPlanScreen({super.key});
 
@@ -12,12 +14,182 @@ class DailyPlanScreen extends StatefulWidget {
 }
 
 class _DailyPlanScreenState extends State<DailyPlanScreen> {
-  final List<_PlanActivity> _activities = _sampleActivities();
+  final _firebaseService = FirebaseService();
+  final _cloudFunctionsService = CloudFunctionsService();
+  List<_PlanActivity> _activities = [];
+  bool _isLoading = true;
+
+  String get _todayKey {
+    final now = DateTime.now();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  }
 
   int get _completedCount =>
       _activities.where((a) => a.status == _Status.completed).length;
   double get _adherencePercent =>
       _activities.isEmpty ? 0 : _completedCount / _activities.length;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPlan();
+  }
+
+  Future<void> _loadPlan() async {
+    try {
+      final saved = await _firebaseService.getDailyPlan(_todayKey);
+      if (saved != null && saved.isNotEmpty) {
+        // Load from Firestore
+        setState(() {
+          _activities = saved.map((a) => _PlanActivity.fromMap(a)).toList();
+          _isLoading = false;
+        });
+      } else {
+        // Auto-generate based on child profile
+        await _generatePlan();
+      }
+    } catch (_) {
+      await _generatePlan();
+    }
+  }
+
+  Future<void> _generatePlan() async {
+    final profile = await _firebaseService.getChildProfile();
+    final childId = profile?.id;
+
+    if (childId != null) {
+      try {
+        // Attempt generation via Cloud Function Backend
+        final backendPlan = await _cloudFunctionsService.generateDailyPlan(childId);
+        
+        if (backendPlan != null && backendPlan.isNotEmpty) {
+          if (mounted) {
+             setState(() {
+               _activities = backendPlan.map((data) => _PlanActivity(
+                 title: data['title'] ?? 'Therapy Activity',
+                 time: data['time'] ?? 'Flexible',
+                 duration: data['duration'] ?? 15,
+                 icon: Icons.star_rounded,
+                 color: AppColors.primary,
+               )).toList();
+               _isLoading = false;
+             });
+          }
+          await _savePlan();
+          return;
+        }
+      } catch (_) {
+        // If Cloud Function fails, fall through to local generation
+      }
+    }
+
+    // Generate activities based on child profile (fallback)
+    final conditions = profile?.conditions ?? [];
+
+    final generated = <_PlanActivity>[];
+    var hour = 9;
+
+    // Communication activity
+    generated.add(_PlanActivity(
+      title: 'Morning Greeting Practice',
+      time: '$hour:00 AM',
+      duration: 10,
+      icon: Icons.chat_bubble_rounded,
+      color: AppColors.primary,
+    ));
+    hour++;
+
+    // Condition-specific activities
+    if (conditions.any((c) => c.toLowerCase().contains('asd') ||
+        c.toLowerCase().contains('autism'))) {
+      generated.add(_PlanActivity(
+        title: 'Sensory Exploration Box',
+        time: '${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? 'PM' : 'AM'}',
+        duration: 15,
+        icon: Icons.sensors_rounded,
+        color: AppColors.purple,
+      ));
+      hour++;
+    }
+
+    if (conditions.any((c) => c.toLowerCase().contains('adhd'))) {
+      generated.add(_PlanActivity(
+        title: 'Focus & Attention Exercise',
+        time: '${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? 'PM' : 'AM'}',
+        duration: 10,
+        icon: Icons.psychology_rounded,
+        color: const Color(0xFFF59E0B),
+      ));
+      hour++;
+    }
+
+    // Motor skills
+    generated.add(_PlanActivity(
+      title: 'Block Stacking Challenge',
+      time: '${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? 'PM' : 'AM'}',
+      duration: 10,
+      icon: Icons.accessibility_new_rounded,
+      color: AppColors.accent,
+    ));
+    hour++;
+
+    // Rest
+    generated.add(_PlanActivity(
+      title: 'Rest & Free Play',
+      time: '${hour > 12 ? hour - 12 : hour}:30 ${hour >= 12 ? 'PM' : 'AM'}',
+      duration: 20,
+      icon: Icons.self_improvement_rounded,
+      color: const Color(0xFF10B981),
+    ));
+    hour++;
+
+    // Game
+    generated.add(_PlanActivity(
+      title: 'Memory Match Game',
+      time: '${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? 'PM' : 'AM'}',
+      duration: 10,
+      icon: Icons.extension_rounded,
+      color: const Color(0xFFF59E0B),
+    ));
+    hour++;
+
+    // Emotion
+    generated.add(_PlanActivity(
+      title: 'Emotion Matching Activity',
+      time: '${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? 'PM' : 'AM'}',
+      duration: 12,
+      icon: Icons.emoji_emotions_rounded,
+      color: AppColors.secondary,
+    ));
+    hour++;
+
+    // Calming
+    generated.add(_PlanActivity(
+      title: 'Breathing Butterfly Exercise',
+      time: '${hour > 12 ? hour - 12 : hour}:00 ${hour >= 12 ? 'PM' : 'AM'}',
+      duration: 5,
+      icon: Icons.spa_rounded,
+      color: const Color(0xFFEC4899),
+    ));
+
+    setState(() {
+      _activities = generated;
+      _isLoading = false;
+    });
+
+    // Save to Firestore
+    await _savePlan();
+  }
+
+  Future<void> _savePlan() async {
+    final data = _activities.map((a) => a.toMap()).toList();
+    await _firebaseService.saveDailyPlan(_todayKey, data);
+  }
+
+  void _updateStatus(int index, _Status status) {
+    setState(() => _activities[index].status = status);
+    _savePlan(); // Persist change to Firestore
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,10 +200,13 @@ class _DailyPlanScreenState extends State<DailyPlanScreen> {
         title: const Text('Today\'s Plan'),
         actions: [
           IconButton(
-            onPressed: () {
+            onPressed: () async {
+              setState(() => _isLoading = true);
+              await _generatePlan();
+              if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('AI plan regeneration — coming soon!'),
+                  content: Text('Plan regenerated! ✨'),
                   backgroundColor: AppColors.primary,
                 ),
               );
@@ -41,36 +216,37 @@ class _DailyPlanScreenState extends State<DailyPlanScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // ─── Adherence Card ──────────────────────────
-          _buildAdherenceCard(isDark),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                // ─── Adherence Card ──────────────────────────
+                _buildAdherenceCard(isDark),
 
-          // ─── Timeline ────────────────────────────────
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
-              itemCount: _activities.length,
-              itemBuilder: (context, index) {
-                return _ActivityTimelineCard(
-                  activity: _activities[index],
-                  isFirst: index == 0,
-                  isLast: index == _activities.length - 1,
-                  onStart: () => _updateStatus(index, _Status.inProgress),
-                  onComplete: () => _updateStatus(index, _Status.completed),
-                  onSkip: () => _updateStatus(index, _Status.skipped),
-                  index: index,
-                );
-              },
+                // ─── Timeline ────────────────────────────────
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+                    itemCount: _activities.length,
+                    itemBuilder: (context, index) {
+                      return _ActivityTimelineCard(
+                        activity: _activities[index],
+                        isFirst: index == 0,
+                        isLast: index == _activities.length - 1,
+                        onStart: () =>
+                            _updateStatus(index, _Status.inProgress),
+                        onComplete: () =>
+                            _updateStatus(index, _Status.completed),
+                        onSkip: () =>
+                            _updateStatus(index, _Status.skipped),
+                        index: index,
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
     );
-  }
-
-  void _updateStatus(int index, _Status status) {
-    setState(() => _activities[index].status = status);
   }
 
   Widget _buildAdherenceCard(bool isDark) {
@@ -91,7 +267,6 @@ class _DailyPlanScreenState extends State<DailyPlanScreen> {
       ),
       child: Row(
         children: [
-          // Ring
           SizedBox(
             width: 56,
             height: 56,
@@ -178,7 +353,6 @@ class _ActivityTimelineCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Timeline line + dot
           SizedBox(
             width: 40,
             child: Column(
@@ -216,8 +390,6 @@ class _ActivityTimelineCard extends StatelessWidget {
               ],
             ),
           ),
-
-          // Card
           Expanded(
             child: Container(
               margin: const EdgeInsets.only(bottom: 12),
@@ -233,7 +405,8 @@ class _ActivityTimelineCard extends StatelessWidget {
                       : (isDark
                           ? AppColors.darkBorder.withValues(alpha: 0.2)
                           : AppColors.divider.withValues(alpha: 0.5)),
-                  width: activity.status == _Status.inProgress ? 1.5 : 1,
+                  width:
+                      activity.status == _Status.inProgress ? 1.5 : 1,
                 ),
                 boxShadow: isDark
                     ? []
@@ -248,7 +421,6 @@ class _ActivityTimelineCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header row
                   Row(
                     children: [
                       Container(
@@ -281,7 +453,8 @@ class _ActivityTimelineCard extends StatelessWidget {
                             ),
                             Text(
                               '${activity.time} · ${activity.duration} min',
-                              style: Theme.of(context).textTheme.bodySmall,
+                              style:
+                                  Theme.of(context).textTheme.bodySmall,
                             ),
                           ],
                         ),
@@ -289,8 +462,6 @@ class _ActivityTimelineCard extends StatelessWidget {
                       _StatusBadge(status: activity.status),
                     ],
                   ),
-
-                  // Actions
                   if (activity.status == _Status.pending ||
                       activity.status == _Status.inProgress) ...[
                     const SizedBox(height: 10),
@@ -371,7 +542,8 @@ class _ActionButton extends StatelessWidget {
         label: Text(label, style: const TextStyle(fontSize: 12)),
         style: OutlinedButton.styleFrom(
           foregroundColor: color,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           minimumSize: Size.zero,
           side: BorderSide(color: color.withValues(alpha: 0.4)),
           shape: RoundedRectangleBorder(
@@ -387,7 +559,8 @@ class _ActionButton extends StatelessWidget {
       style: ElevatedButton.styleFrom(
         backgroundColor: color,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         minimumSize: Size.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
@@ -406,9 +579,12 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color, bgColor) = switch (status) {
       _Status.completed => ('Done', AppColors.success, AppColors.successLight),
-      _Status.inProgress => ('Active', AppColors.primary, AppColors.primarySurface),
-      _Status.skipped => ('Skipped', AppColors.textTertiary, AppColors.surfaceVariant),
-      _Status.pending => ('Pending', AppColors.textTertiary, AppColors.surfaceVariant),
+      _Status.inProgress =>
+        ('Active', AppColors.primary, AppColors.primarySurface),
+      _Status.skipped =>
+        ('Skipped', AppColors.textTertiary, AppColors.surfaceVariant),
+      _Status.pending =>
+        ('Pending', AppColors.textTertiary, AppColors.surfaceVariant),
     };
 
     return Container(
@@ -449,59 +625,30 @@ class _PlanActivity {
     required this.color,
     this.status = _Status.pending,
   });
-}
 
-List<_PlanActivity> _sampleActivities() => [
-      _PlanActivity(
-        title: 'Morning Greeting Practice',
-        time: '9:00 AM',
-        duration: 10,
-        icon: Icons.chat_bubble_rounded,
-        color: AppColors.primary,
-        status: _Status.completed,
+  Map<String, dynamic> toMap() {
+    return {
+      'title': title,
+      'time': time,
+      'duration': duration,
+      'iconCode': icon.codePoint,
+      'colorValue': color.toARGB32(),
+      'status': status.name,
+    };
+  }
+
+  factory _PlanActivity.fromMap(Map<String, dynamic> map) {
+    return _PlanActivity(
+      title: map['title'] ?? '',
+      time: map['time'] ?? '',
+      duration: map['duration'] ?? 10,
+      icon: IconData(map['iconCode'] ?? Icons.extension_rounded.codePoint,
+          fontFamily: 'MaterialIcons'),
+      color: Color(map['colorValue'] ?? AppColors.primary.toARGB32()),
+      status: _Status.values.firstWhere(
+        (s) => s.name == (map['status'] ?? 'pending'),
+        orElse: () => _Status.pending,
       ),
-      _PlanActivity(
-        title: 'Texture Exploration Box',
-        time: '9:30 AM',
-        duration: 15,
-        icon: Icons.sensors_rounded,
-        color: AppColors.purple,
-        status: _Status.completed,
-      ),
-      _PlanActivity(
-        title: 'Block Stacking Challenge',
-        time: '10:00 AM',
-        duration: 10,
-        icon: Icons.accessibility_new_rounded,
-        color: AppColors.accent,
-        status: _Status.inProgress,
-      ),
-      _PlanActivity(
-        title: 'Rest & Free Play',
-        time: '10:30 AM',
-        duration: 20,
-        icon: Icons.self_improvement_rounded,
-        color: const Color(0xFF10B981),
-      ),
-      _PlanActivity(
-        title: 'Memory Match Game',
-        time: '11:00 AM',
-        duration: 10,
-        icon: Icons.extension_rounded,
-        color: const Color(0xFFF59E0B),
-      ),
-      _PlanActivity(
-        title: 'Emotion Matching Activity',
-        time: '11:30 AM',
-        duration: 12,
-        icon: Icons.emoji_emotions_rounded,
-        color: AppColors.secondary,
-      ),
-      _PlanActivity(
-        title: 'Breathing Butterfly Exercise',
-        time: '12:00 PM',
-        duration: 5,
-        icon: Icons.spa_rounded,
-        color: const Color(0xFFEC4899),
-      ),
-    ];
+    );
+  }
+}

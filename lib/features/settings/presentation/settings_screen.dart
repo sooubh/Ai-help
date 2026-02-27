@@ -1,14 +1,87 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../services/firebase_service.dart';
+import '../../../services/notification_service.dart';
 
 /// Settings screen — profile, theme, voice, notifications, privacy, logout.
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  final _notificationService = NotificationService();
+  bool _notificationsEnabled = true;
+  bool _isExporting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotificationPref();
+  }
+
+  Future<void> _loadNotificationPref() async {
+    final enabled = await _notificationService.isEnabled();
+    if (mounted) setState(() => _notificationsEnabled = enabled);
+  }
+
+  Future<void> _toggleNotifications(bool value) async {
+    setState(() => _notificationsEnabled = value);
+    await _notificationService.setEnabled(value);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(value
+            ? 'Notifications enabled'
+            : 'Notifications disabled'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _exportData() async {
+    setState(() => _isExporting = true);
+    try {
+      final firebase = FirebaseService();
+      final userProfile = await firebase.getUserProfile();
+      final childProfiles = await firebase.getChildProfiles();
+
+      final exportData = {
+        'exportedAt': DateTime.now().toIso8601String(),
+        'user': userProfile?.toMap(),
+        'children': childProfiles.map((c) => c.toMap()).toList(),
+      };
+
+      final jsonString = const JsonEncoder.withIndent('  ').convert(exportData);
+      await Clipboard.setData(ClipboardData(text: jsonString));
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Data copied to clipboard! 📋'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Export failed: ${e.toString()}'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -119,14 +192,8 @@ class SettingsScreen extends StatelessWidget {
               title: 'Push Notifications',
               subtitle: 'Daily reminders, progress updates',
               trailing: Switch.adaptive(
-                value: true,
-                onChanged: (_) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content:
-                            Text('Notification settings — coming soon!')),
-                  );
-                },
+                value: _notificationsEnabled,
+                onChanged: _toggleNotifications,
                 activeTrackColor: AppColors.primary,
               ),
             ),
@@ -144,13 +211,33 @@ class SettingsScreen extends StatelessWidget {
             _SettingsTile(
               icon: Icons.download_rounded,
               title: 'Export My Data',
-              subtitle: 'Download a copy of your data',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Data export — coming soon!')),
-                );
-              },
+              subtitle: 'Download a copy of your data to clipboard',
+              trailing: _isExporting
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : null,
+              onTap: _isExporting ? null : _exportData,
+            ),
+            _SettingsTile(
+              icon: Icons.medical_information_rounded,
+              title: 'Generate Doctor Report',
+              subtitle: 'Professional summary for your healthcare provider',
+              onTap: () => Navigator.pushNamed(context, '/doctor-report'),
+            ),
+
+            const SizedBox(height: 20),
+
+            // ─── Help & Info ────────────────────────────
+            _sectionTitle(context, 'Help & Info'),
+            const SizedBox(height: 8),
+            _SettingsTile(
+              icon: Icons.help_outline_rounded,
+              title: 'About & Help',
+              subtitle: 'FAQ, legal, support, app info',
+              onTap: () => Navigator.pushNamed(context, '/about'),
             ),
 
             const SizedBox(height: 20),
