@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../services/ai_service.dart';
@@ -26,11 +27,41 @@ class _ChatScreenState extends State<ChatScreen> {
   final List<_ChatMsg> _messages = [];
   bool _isTyping = false;
   bool _ttsEnabled = false;
+  bool _isListening = false;
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _speechAvailable = false;
 
   @override
   void initState() {
     super.initState();
     _initChat();
+    _initSpeech();
+  }
+
+  Future<void> _initSpeech() async {
+    _speechAvailable = await _speech.initialize();
+    if (mounted) setState(() {});
+  }
+
+  void _toggleListening() async {
+    if (_isListening) {
+      await _speech.stop();
+      setState(() => _isListening = false);
+    } else if (_speechAvailable) {
+      setState(() => _isListening = true);
+      await _speech.listen(
+        onResult: (result) {
+          setState(() {
+            _messageController.text = result.recognizedWords;
+          });
+          if (result.finalResult) {
+            setState(() => _isListening = false);
+          }
+        },
+        listenFor: const Duration(seconds: 30),
+        pauseFor: const Duration(seconds: 3),
+      );
+    }
   }
 
   Future<void> _initChat() async {
@@ -39,12 +70,35 @@ class _ChatScreenState extends State<ChatScreen> {
     final profile = await _firebaseService.getChildProfile();
     aiService.startChatSession(childProfile: profile);
 
-    // Add welcome message
-    _messages.add(_ChatMsg(
-      text: AppStrings.chatWelcome,
-      isUser: false,
-    ));
-    if (mounted) setState(() {});
+    // Load chat history from Firestore (last 50)
+    try {
+      final stream = _firebaseService.getChatMessages();
+      final messages = await stream.first;
+      if (messages.isNotEmpty && mounted) {
+        final historyMsgs = messages.take(50).map((msg) {
+          return _ChatMsg(
+            text: msg.message,
+            isUser: msg.sender == 'user',
+          );
+        }).toList();
+
+        setState(() {
+          _messages.addAll(historyMsgs);
+        });
+        _scrollToBottom();
+      }
+    } catch (_) {
+      // History load failed, proceed with welcome message
+    }
+
+    // Add welcome message if no history
+    if (_messages.isEmpty) {
+      _messages.add(_ChatMsg(
+        text: AppStrings.chatWelcome,
+        isUser: false,
+      ));
+      if (mounted) setState(() {});
+    }
   }
 
   Future<void> _sendMessage() async {
@@ -201,6 +255,47 @@ class _ChatScreenState extends State<ChatScreen> {
             size: 22,
           ),
           tooltip: _ttsEnabled ? 'Mute voice' : 'Enable voice',
+        ),
+        PopupMenuButton<String>(
+          onSelected: (value) {
+            if (value == 'clear') {
+              showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text('Clear Chat'),
+                  content: const Text(
+                      'This will clear the current chat session. History in Firestore is preserved.'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Clear'),
+                    ),
+                  ],
+                ),
+              ).then((confirmed) {
+                if (confirmed == true && mounted) {
+                  setState(() => _messages.clear());
+                  _initChat();
+                }
+              });
+            }
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'clear',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline_rounded, size: 20),
+                  SizedBox(width: 8),
+                  Text('Clear Chat'),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -464,6 +559,25 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
                 child: Row(
                   children: [
+                    // Mic button for voice input
+                    if (_speechAvailable)
+                      GestureDetector(
+                        onTap: _toggleListening,
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Icon(
+                            _isListening
+                                ? Icons.mic_rounded
+                                : Icons.mic_none_rounded,
+                            color: _isListening
+                                ? AppColors.error
+                                : (isDark
+                                    ? AppColors.darkTextTertiary
+                                    : AppColors.textTertiary),
+                            size: 22,
+                          ),
+                        ),
+                      ),
                     Expanded(
                       child: TextField(
                         controller: _messageController,

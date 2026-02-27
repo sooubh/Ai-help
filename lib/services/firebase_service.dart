@@ -4,6 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../models/user_model.dart';
 import '../models/child_profile_model.dart';
 import '../models/chat_message_model.dart';
+import '../models/activity_log_model.dart';
 
 /// Centralized Firebase service handling Auth, Firestore reads/writes.
 class FirebaseService {
@@ -281,5 +282,128 @@ class FirebaseService {
             .collection('chats');
 
     await path.add(message.toMap());
+  }
+
+  // ─── Bookmarks ─────────────────────────────────────────
+
+  /// Bookmark a therapy activity by its ID.
+  Future<void> bookmarkActivity(String activityId) async {
+    final uid = currentUser?.uid;
+    if (uid == null) throw Exception('User not authenticated');
+
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('bookmarks')
+        .doc(activityId)
+        .set({'bookmarkedAt': Timestamp.fromDate(DateTime.now())});
+  }
+
+  /// Remove a bookmarked activity.
+  Future<void> unbookmarkActivity(String activityId) async {
+    final uid = currentUser?.uid;
+    if (uid == null) throw Exception('User not authenticated');
+
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('bookmarks')
+        .doc(activityId)
+        .delete();
+  }
+
+  /// Get all bookmarked activity IDs.
+  Future<Set<String>> getBookmarkedIds() async {
+    final uid = currentUser?.uid;
+    if (uid == null) return {};
+
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('bookmarks')
+        .get();
+
+    return snapshot.docs.map((doc) => doc.id).toSet();
+  }
+
+  // ─── Activity Logging ──────────────────────────────────
+
+  /// Log a completed activity session.
+  Future<void> logActivity(ActivityLogModel log) async {
+    final uid = currentUser?.uid;
+    if (uid == null) throw Exception('User not authenticated');
+
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('activity_logs')
+        .add(log.toMap());
+  }
+
+  /// Get recent activity logs.
+  Future<List<ActivityLogModel>> getActivityLogs({int limit = 20}) async {
+    final uid = currentUser?.uid;
+    if (uid == null) return [];
+
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('activity_logs')
+        .orderBy('completedAt', descending: true)
+        .limit(limit)
+        .get();
+
+    return snapshot.docs
+        .map((doc) => ActivityLogModel.fromMap(doc.data(), doc.id))
+        .toList();
+  }
+
+  /// Get weekly stats: total activities, total minutes, current streak.
+  Future<Map<String, dynamic>> getWeeklyStats() async {
+    final uid = currentUser?.uid;
+    if (uid == null) return {'count': 0, 'minutes': 0, 'streak': 0};
+
+    final now = DateTime.now();
+    final weekAgo = now.subtract(const Duration(days: 7));
+
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('activity_logs')
+        .where('completedAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(weekAgo))
+        .orderBy('completedAt', descending: true)
+        .get();
+
+    final logs = snapshot.docs
+        .map((doc) => ActivityLogModel.fromMap(doc.data(), doc.id))
+        .toList();
+
+    int totalSeconds = 0;
+    for (final log in logs) {
+      totalSeconds += log.durationSeconds;
+    }
+
+    // Calculate streak (consecutive days with activity)
+    int streak = 0;
+    var checkDate = DateTime(now.year, now.month, now.day);
+    final allLogs = await getActivityLogs(limit: 100);
+    final activeDays = <String>{};
+    for (final log in allLogs) {
+      activeDays.add(
+          '${log.completedAt.year}-${log.completedAt.month}-${log.completedAt.day}');
+    }
+
+    while (activeDays
+        .contains('${checkDate.year}-${checkDate.month}-${checkDate.day}')) {
+      streak++;
+      checkDate = checkDate.subtract(const Duration(days: 1));
+    }
+
+    return {
+      'count': logs.length,
+      'minutes': (totalSeconds / 60).round(),
+      'streak': streak,
+    };
   }
 }

@@ -26,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _firebaseService = FirebaseService();
   int _currentNavIndex = 0;
   ChildProfileModel? _childProfile;
+  List<ChildProfileModel> _allChildren = [];
   bool _isLoadingProfile = true;
 
   @override
@@ -36,16 +37,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadChildProfile() async {
     try {
-      final profile = await _firebaseService.getChildProfile();
+      final profiles = await _firebaseService.getChildProfiles();
+      final selected = profiles.isNotEmpty ? profiles.first : null;
       if (mounted) {
         setState(() {
-          _childProfile = profile;
+          _allChildren = profiles;
+          _childProfile = selected;
           _isLoadingProfile = false;
         });
       }
     } catch (_) {
       if (mounted) setState(() => _isLoadingProfile = false);
     }
+  }
+
+  void _switchChild(ChildProfileModel child) {
+    setState(() => _childProfile = child);
   }
 
   @override
@@ -58,8 +65,10 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           _DashboardTab(
             childProfile: _childProfile,
+            allChildren: _allChildren,
             isLoading: _isLoadingProfile,
             onRefresh: _loadChildProfile,
+            onSwitchChild: _switchChild,
           ),
           const ModulesLibraryScreen(),
           const ProgressScreen(),
@@ -139,13 +148,17 @@ class _HomeScreenState extends State<HomeScreen> {
 // ═══════════════════════════════════════════════════════════════
 class _DashboardTab extends StatelessWidget {
   final ChildProfileModel? childProfile;
+  final List<ChildProfileModel> allChildren;
   final bool isLoading;
   final VoidCallback onRefresh;
+  final ValueChanged<ChildProfileModel> onSwitchChild;
 
   const _DashboardTab({
     required this.childProfile,
+    required this.allChildren,
     required this.isLoading,
     required this.onRefresh,
+    required this.onSwitchChild,
   });
 
   @override
@@ -166,6 +179,9 @@ class _DashboardTab extends StatelessWidget {
             children: [
               // ─── Top Bar ─────────────────────────────────
               _buildTopBar(context, greeting, user, isDark),
+
+              // Multi-child selector
+              _buildChildSelector(context, isDark),
 
               const SizedBox(height: 20),
 
@@ -268,6 +284,72 @@ class _DashboardTab extends StatelessWidget {
         ),
       ],
     ).animate().fadeIn(duration: 400.ms);
+  }
+
+  /// Multi-child selector row shown below greeting when multiple children exist.
+  Widget _buildChildSelector(BuildContext context, bool isDark) {
+    if (allChildren.length <= 1) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: SizedBox(
+        height: 40,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: allChildren.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            final child = allChildren[index];
+            final isSelected = child.name == childProfile?.name;
+
+            return GestureDetector(
+              onTap: () => onSwitchChild(child),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.primary
+                      : (isDark
+                          ? AppColors.darkSurfaceVariant
+                          : AppColors.surfaceVariant),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.child_care_rounded,
+                      size: 16,
+                      color: isSelected
+                          ? Colors.white
+                          : (isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textSecondary),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      child.name,
+                      style: TextStyle(
+                        color: isSelected
+                            ? Colors.white
+                            : (isDark
+                                ? AppColors.darkTextPrimary
+                                : AppColors.textPrimary),
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 
   Widget _buildHeroCard(BuildContext context) {
@@ -373,6 +455,24 @@ class _DashboardTab extends StatelessWidget {
         icon: Icons.emergency_rounded,
         gradient: AppGradients.emergency,
         onTap: () => Navigator.pushNamed(context, '/emergency'),
+      ),
+      _QuickAction(
+        title: 'Wellness',
+        icon: Icons.spa_rounded,
+        gradient: AppGradients.cardCool,
+        onTap: () => Navigator.pushNamed(context, '/wellness'),
+      ),
+      _QuickAction(
+        title: 'Community',
+        icon: Icons.groups_rounded,
+        gradient: AppGradients.cardWarm,
+        onTap: () => Navigator.pushNamed(context, '/community'),
+      ),
+      _QuickAction(
+        title: 'Achievements',
+        icon: Icons.emoji_events_rounded,
+        gradient: AppGradients.cardPurple,
+        onTap: () => Navigator.pushNamed(context, '/achievements'),
       ),
     ];
 
