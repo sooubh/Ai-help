@@ -36,6 +36,7 @@ import 'features/doctor/presentation/doctor_dashboard_screen.dart';
 import 'features/doctor/presentation/patient_detail_screen.dart';
 import 'features/doctor/presentation/assign_plan_screen.dart';
 import 'features/doctor/presentation/compose_guidance_note_screen.dart';
+import 'features/doctor/presentation/role_selection_screen.dart';
 import 'services/notification_service.dart';
 
 /// Entry point for CARE-AI.
@@ -52,9 +53,7 @@ void main() async {
   }
 
   // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Enable offline persistence with unlimited cache
   FirebaseFirestore.instance.settings = const Settings(
@@ -119,9 +118,9 @@ class CareAiApp extends StatelessWidget {
             return const _SplashScreen();
           }
 
-          // User is signed in → go to home
+          // User is signed in → show role selection
           if (snapshot.hasData && snapshot.data != null) {
-            return const HomeScreen();
+            return const RoleSelectionScreen();
           }
 
           // Not signed in → show onboarding/login
@@ -151,20 +150,31 @@ class CareAiApp extends StatelessWidget {
         '/community': (context) => const CommunityScreen(),
         '/achievements': (context) => const AchievementsScreen(),
         '/voice-assistant': (context) => const VoiceAssistantScreen(),
+        '/role-selection': (context) => const RoleSelectionScreen(),
         '/doctor-dashboard': (context) => const DoctorDashboardScreen(),
         '/patient-detail': (context) {
-          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          final args =
+              ModalRoute.of(context)?.settings.arguments
+                  as Map<String, dynamic>?;
           return PatientDetailScreen(
             childId: args?['childId'] ?? '',
             childName: args?['childName'] ?? 'Unknown Patient',
+            parentUid: args?['parentUid'] ?? '',
           );
         },
         '/assign-plan': (context) {
-          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-          return AssignPlanScreen(childId: args?['childId'] ?? '');
+          final args =
+              ModalRoute.of(context)?.settings.arguments
+                  as Map<String, dynamic>?;
+          return AssignPlanScreen(
+            childId: args?['childId'] ?? '',
+            parentUid: args?['parentUid'] ?? '',
+          );
         },
         '/compose-note': (context) {
-          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          final args =
+              ModalRoute.of(context)?.settings.arguments
+                  as Map<String, dynamic>?;
           return ComposeGuidanceNoteScreen(childId: args?['childId'] ?? '');
         },
       },
@@ -195,30 +205,30 @@ class _SplashScreen extends StatelessWidget {
             children: [
               // Pulsing logo
               Container(
-                width: 110,
-                height: 110,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF5B6EF5), Color(0xFFA855F7)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF5B6EF5).withValues(alpha: 0.5),
-                      blurRadius: 40,
-                      spreadRadius: 5,
-                      offset: const Offset(0, 10),
+                    width: 110,
+                    height: 110,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF5B6EF5), Color(0xFFA855F7)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF5B6EF5).withValues(alpha: 0.5),
+                          blurRadius: 40,
+                          spreadRadius: 5,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.favorite_rounded,
-                  size: 56,
-                  color: Colors.white,
-                ),
-              )
+                    child: const Icon(
+                      Icons.favorite_rounded,
+                      size: 56,
+                      color: Colors.white,
+                    ),
+                  )
                   .animate(onPlay: (c) => c.repeat(reverse: true))
                   .scale(
                     begin: const Offset(1, 1),
@@ -234,14 +244,14 @@ class _SplashScreen extends StatelessWidget {
 
               // App name with shimmer
               const Text(
-                'CARE-AI',
-                style: TextStyle(
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  letterSpacing: 3,
-                ),
-              )
+                    'CARE-AI',
+                    style: TextStyle(
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 3,
+                    ),
+                  )
                   .animate()
                   .fadeIn(delay: 300.ms, duration: 500.ms)
                   .slideY(begin: 0.3, duration: 500.ms),

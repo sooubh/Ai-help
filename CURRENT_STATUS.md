@@ -40,7 +40,7 @@ Assists parents/caregivers of children with ASD, ADHD, speech delays, cerebral p
 | About | ✅ COMPLETE | App info + safety disclaimer |
 | Real-Time Data | ✅ COMPLETE | All screens use Firestore, offline persistence enabled |
 | User Event Tracking | ✅ COMPLETE | UserEventModel, saveUserEvent method |
-| Doctor App Stream | ❌ NOT STARTED | Entire therapist portal |
+| Doctor App Stream | ✅ COMPLETE | Entire therapist portal with tabs, assignment, and notes |
 | Cloud Functions | ❌ NOT STARTED | No server-side functions deployed |
 | AI Recommendation Engine | ✅ COMPLETE | Dashboard generates & caches AI recommendations |
 | Adaptive Difficulty | ❌ NOT STARTED | No auto-adjustment logic |
