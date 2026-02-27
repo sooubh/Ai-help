@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../core/config/env_config.dart';
 import '../models/child_profile_model.dart';
+import '../models/recommendation_model.dart';
 
 /// AI service powered by Google Gemini.
 ///
@@ -94,7 +96,7 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
       return text;
     } catch (e) {
       // ignore: avoid_print
-      print('Gemini API error: $e');
+      print('Gemini API error: \$e');
       return _getFallbackResponse(userMessage);
     }
   }
@@ -123,32 +125,49 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
   }
 
   /// Generate personalized recommendations based on child profile.
-  Future<String> getRecommendations(ChildProfileModel profile) async {
+  Future<List<RecommendationModel>> getRecommendations(ChildProfileModel profile) async {
     if (_model == null) {
       return _getDefaultRecommendations(profile);
     }
 
     final prompt = '''
 Based on the following child profile, suggest 3-5 appropriate therapy activities for today.
-Each activity should include: title, duration, objective, and why it's suitable.
 
 Child Profile:
-- Name: ${profile.name}
-- Age: ${profile.age}
-- Conditions: ${profile.conditions.join(', ')}
-- Communication Level: ${profile.communicationLevel}
-- Behavioral Concerns: ${profile.behavioralConcerns.join(', ')}
-- Sensory Issues: ${profile.sensoryIssues.join(', ')}
-- Motor Skill Level: ${profile.motorSkillLevel}
-- Parent Goals: ${profile.parentGoals.join(', ')}
+- Name: \${profile.name}
+- Age: \${profile.age}
+- Conditions: \${profile.conditions.join(', ')}
+- Communication Level: \${profile.communicationLevel}
+- Behavioral Concerns: \${profile.behavioralConcerns.join(', ')}
+- Sensory Issues: \${profile.sensoryIssues.join(', ')}
+- Motor Skill Level: \${profile.motorSkillLevel}
+- Parent Goals: \${profile.parentGoals.join(', ')}
 
-Format as a numbered list. Keep activities practical for home settings.
+Format the response strictly as a JSON array of objects. Do not include markdown code blocks.
+Each object must have exactly these keys:
+- "title": (String) Name of the activity.
+- "duration": (String) Estimated time, e.g., "15 min".
+- "objective": (String) Goal of the activity.
+- "reason": (String) Why it's suitable based on the profile.
 ''';
 
     try {
       final response = await _model!.generateContent([Content.text(prompt)]);
-      return response.text ?? _getDefaultRecommendations(profile);
+      
+      String jsonStr = response.text?.trim() ?? '';
+      
+      // Cleanup markdown artifacts if present
+      if (jsonStr.startsWith('```json')) {
+        jsonStr = jsonStr.replaceAll('```json', '').replaceAll('```', '').trim();
+      } else if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replaceAll('```', '').trim();
+      }
+
+      final List<dynamic> parsed = json.decode(jsonStr);
+      return parsed.map((e) => RecommendationModel.fromMap(e as Map<String, dynamic>)).toList();
     } catch (e) {
+      // ignore: avoid_print
+      print('Failed to parse AI recommendations: \$e');
       return _getDefaultRecommendations(profile);
     }
   }
@@ -159,15 +178,15 @@ Format as a numbered list. Keep activities practical for home settings.
 
     return '''
 CHILD CONTEXT (use this to personalize all responses):
-- Child Name: ${profile.name}
-- Age: ${profile.age} years
-- Conditions: ${profile.conditions.join(', ')}
-- Communication: ${profile.communicationLevel}
-- Behavioral Concerns: ${profile.behavioralConcerns.join(', ')}
-- Sensory Issues: ${profile.sensoryIssues.join(', ')}
-- Motor Skills: ${profile.motorSkillLevel}
-- Parent Goals: ${profile.parentGoals.join(', ')}
-- Current Therapy: ${profile.currentTherapyStatus}
+- Child Name: \${profile.name}
+- Age: \${profile.age} years
+- Conditions: \${profile.conditions.join(', ')}
+- Communication: \${profile.communicationLevel}
+- Behavioral Concerns: \${profile.behavioralConcerns.join(', ')}
+- Sensory Issues: \${profile.sensoryIssues.join(', ')}
+- Motor Skills: \${profile.motorSkillLevel}
+- Parent Goals: \${profile.parentGoals.join(', ')}
+- Current Therapy: \${profile.currentTherapyStatus}
 
 Tailor all advice and activities to this child's specific needs and abilities.
 ''';
@@ -224,13 +243,27 @@ Tailor all advice and activities to this child's specific needs and abilities.
   }
 
   /// Default recommendations when AI is unavailable.
-  String _getDefaultRecommendations(ChildProfileModel profile) {
-    return "Here are some recommended activities for ${profile.name}:\n\n"
-        "1. **Sensory Play** (15 min) — Play with textured materials like rice or playdough\n"
-        "2. **Communication Practice** (10 min) — Use picture cards for daily requests\n"
-        "3. **Motor Skills** (10 min) — Simple stacking or threading activities\n"
-        "4. **Social Interaction** (15 min) — Turn-taking games with a caregiver\n"
-        "5. **Calm Down Time** (10 min) — Guided breathing with visual cues";
+  List<RecommendationModel> _getDefaultRecommendations(ChildProfileModel profile) {
+    return [
+      RecommendationModel(
+        title: 'Sensory Play Time',
+        duration: '15 min',
+        objective: 'Texture exploration',
+        reason: 'Great for sensory processing needs.',
+      ),
+      RecommendationModel(
+        title: 'Communication Practice',
+        duration: '10 min',
+        objective: 'Use picture cards for daily requests',
+        reason: 'Supports current communication goals.',
+      ),
+      RecommendationModel(
+        title: 'Motor Skills Exercise',
+        duration: '10 min',
+        objective: 'Simple stacking or threading activities',
+        reason: 'Builds fine motor coordination.',
+      ),
+    ];
   }
 
   /// Dispose resources.

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../models/therapy_module_model.dart';
+import 'activity_timer_screen.dart';
 
 /// Full detail view for a single therapy module.
 /// Shows objective, materials, step-by-step instructions,
@@ -278,11 +279,11 @@ class ModuleDetailScreen extends StatelessWidget {
                     height: 56,
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                                'Activity tracking — coming with Progress Tracking!'),
-                            backgroundColor: AppColors.success,
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ActivityTimerScreen(
+                                module: module),
                           ),
                         );
                       },

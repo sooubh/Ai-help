@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -24,6 +26,17 @@ import 'features/settings/presentation/settings_screen.dart';
 import 'features/daily_plan/presentation/daily_plan_screen.dart';
 import 'features/emergency/presentation/emergency_screen.dart';
 import 'features/games/presentation/games_hub_screen.dart';
+import 'features/wellness/presentation/wellness_screen.dart';
+import 'features/report/presentation/doctor_report_screen.dart';
+import 'features/about/presentation/about_screen.dart';
+import 'features/community/presentation/community_screen.dart';
+import 'features/achievements/presentation/achievements_screen.dart';
+import 'features/voice/presentation/voice_assistant_screen.dart';
+import 'features/doctor/presentation/doctor_dashboard_screen.dart';
+import 'features/doctor/presentation/patient_detail_screen.dart';
+import 'features/doctor/presentation/assign_plan_screen.dart';
+import 'features/doctor/presentation/compose_guidance_note_screen.dart';
+import 'services/notification_service.dart';
 
 /// Entry point for CARE-AI.
 /// Initializes Firebase, validates environment, sets up providers,
@@ -43,12 +56,22 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  // Enable offline persistence with unlimited cache
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+  );
+
   // Validate environment configuration
   EnvConfig.validate();
 
   // Initialize Gemini AI service
   final aiService = AiService();
   aiService.initialize();
+
+  // Initialize push notifications
+  final notificationService = NotificationService();
+  await notificationService.init();
 
   // Load saved theme preference
   final themeProvider = ThemeProvider();
@@ -122,6 +145,28 @@ class CareAiApp extends StatelessWidget {
         '/daily-plan': (context) => const DailyPlanScreen(),
         '/emergency': (context) => const EmergencyScreen(),
         '/games': (context) => const GamesHubScreen(),
+        '/wellness': (context) => const WellnessScreen(),
+        '/doctor-report': (context) => const DoctorReportScreen(),
+        '/about': (context) => const AboutScreen(),
+        '/community': (context) => const CommunityScreen(),
+        '/achievements': (context) => const AchievementsScreen(),
+        '/voice-assistant': (context) => const VoiceAssistantScreen(),
+        '/doctor-dashboard': (context) => const DoctorDashboardScreen(),
+        '/patient-detail': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          return PatientDetailScreen(
+            childId: args?['childId'] ?? '',
+            childName: args?['childName'] ?? 'Unknown Patient',
+          );
+        },
+        '/assign-plan': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          return AssignPlanScreen(childId: args?['childId'] ?? '');
+        },
+        '/compose-note': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          return ComposeGuidanceNoteScreen(childId: args?['childId'] ?? '');
+        },
       },
     );
   }
@@ -134,49 +179,98 @@ class _SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // App icon with glow
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF5B6EF5), Color(0xFFA855F7)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF1E1B4B), Color(0xFF312E81), Color(0xFF3B0764)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Pulsing logo
+              Container(
+                width: 110,
+                height: 110,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF5B6EF5), Color(0xFFA855F7)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF5B6EF5).withValues(alpha: 0.5),
+                      blurRadius: 40,
+                      spreadRadius: 5,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
                 ),
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF5B6EF5).withValues(alpha: 0.3),
-                    blurRadius: 30,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.favorite_rounded,
-                size: 52,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'CARE-AI',
-              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 32),
-            const SizedBox(
-              width: 32,
-              height: 32,
-              child: CircularProgressIndicator(strokeWidth: 3),
-            ),
-          ],
+                child: const Icon(
+                  Icons.favorite_rounded,
+                  size: 56,
+                  color: Colors.white,
+                ),
+              )
+                  .animate(onPlay: (c) => c.repeat(reverse: true))
+                  .scale(
+                    begin: const Offset(1, 1),
+                    end: const Offset(1.06, 1.06),
+                    duration: 1200.ms,
+                    curve: Curves.easeInOut,
+                  )
+                  .animate()
+                  .fadeIn(duration: 600.ms)
+                  .slideY(begin: -0.2, duration: 600.ms),
+
+              const SizedBox(height: 28),
+
+              // App name with shimmer
+              const Text(
+                'CARE-AI',
+                style: TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: 3,
+                ),
+              )
+                  .animate()
+                  .fadeIn(delay: 300.ms, duration: 500.ms)
+                  .slideY(begin: 0.3, duration: 500.ms),
+
+              const SizedBox(height: 8),
+
+              // Tagline
+              Text(
+                'AI Parenting Companion',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.white.withValues(alpha: 0.7),
+                  letterSpacing: 1.5,
+                ),
+              ).animate().fadeIn(delay: 600.ms, duration: 500.ms),
+
+              const SizedBox(height: 48),
+
+              // Loading indicator
+              SizedBox(
+                width: 36,
+                height: 36,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  color: Colors.white.withValues(alpha: 0.8),
+                ),
+              ).animate().fadeIn(delay: 800.ms, duration: 400.ms),
+            ],
+          ),
         ),
       ),
     );

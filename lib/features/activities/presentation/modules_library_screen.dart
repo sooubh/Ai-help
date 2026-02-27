@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../models/therapy_module_model.dart';
+import '../../../services/firebase_service.dart';
 import 'module_detail_screen.dart';
 
 /// Therapy Modules Library — browse, filter, and search activities.
@@ -16,7 +17,10 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
   String _selectedCategory = 'All';
   String _selectedDifficulty = 'All';
   String _searchQuery = '';
+  bool _showBookmarksOnly = false;
+  Set<String> _bookmarkedIds = {};
   final _searchController = TextEditingController();
+  final _firebaseService = FirebaseService();
 
   // Sample categories for filters
   static const _categories = [
@@ -30,6 +34,27 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
   ];
 
   static const _difficulties = ['All', 'Beginner', 'Easy', 'Medium', 'Hard', 'Expert'];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBookmarks();
+  }
+
+  Future<void> _loadBookmarks() async {
+    final ids = await _firebaseService.getBookmarkedIds();
+    if (mounted) setState(() => _bookmarkedIds = ids);
+  }
+
+  Future<void> _toggleBookmark(String id) async {
+    if (_bookmarkedIds.contains(id)) {
+      await _firebaseService.unbookmarkActivity(id);
+      setState(() => _bookmarkedIds.remove(id));
+    } else {
+      await _firebaseService.bookmarkActivity(id);
+      setState(() => _bookmarkedIds.add(id));
+    }
+  }
 
   @override
   void dispose() {
@@ -61,6 +86,10 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
           modules.where((m) => m.difficultyLevel == diffLevel).toList();
     }
 
+    if (_showBookmarksOnly) {
+      modules = modules.where((m) => _bookmarkedIds.contains(m.id)).toList();
+    }
+
     return modules;
   }
 
@@ -75,9 +104,14 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
         actions: [
           IconButton(
             onPressed: () {
-              // TODO: Bookmarks
+              setState(() => _showBookmarksOnly = !_showBookmarksOnly);
             },
-            icon: const Icon(Icons.bookmark_outline_rounded),
+            icon: Icon(
+              _showBookmarksOnly
+                  ? Icons.bookmark_rounded
+                  : Icons.bookmark_outline_rounded,
+              color: _showBookmarksOnly ? AppColors.gold : null,
+            ),
           ),
         ],
       ),
@@ -248,14 +282,17 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
                     itemCount: filtered.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
+                      final module = filtered[index];
                       return _ModuleCard(
-                        module: filtered[index],
+                        module: module,
                         index: index,
+                        isBookmarked: _bookmarkedIds.contains(module.id),
+                        onBookmark: () => _toggleBookmark(module.id),
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) => ModuleDetailScreen(
-                                module: filtered[index]),
+                                module: module),
                           ),
                         ),
                       );
@@ -299,11 +336,15 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
 class _ModuleCard extends StatelessWidget {
   final TherapyModuleModel module;
   final int index;
+  final bool isBookmarked;
+  final VoidCallback onBookmark;
   final VoidCallback onTap;
 
   const _ModuleCard({
     required this.module,
     required this.index,
+    required this.isBookmarked,
+    required this.onBookmark,
     required this.onTap,
   });
 
@@ -397,14 +438,26 @@ class _ModuleCard extends StatelessWidget {
               ),
             ),
 
-            // Arrow
-            const Padding(
-              padding: EdgeInsets.only(top: 14),
-              child: Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 14,
-                color: AppColors.textTertiary,
-              ),
+            // Arrow + Bookmark
+            Column(
+              children: [
+                GestureDetector(
+                  onTap: onBookmark,
+                  child: Icon(
+                    isBookmarked
+                        ? Icons.bookmark_rounded
+                        : Icons.bookmark_outline_rounded,
+                    size: 22,
+                    color: isBookmarked ? AppColors.gold : AppColors.textTertiary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  size: 14,
+                  color: AppColors.textTertiary,
+                ),
+              ],
             ),
           ],
         ),
