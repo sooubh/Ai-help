@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -30,6 +31,11 @@ import 'features/report/presentation/doctor_report_screen.dart';
 import 'features/about/presentation/about_screen.dart';
 import 'features/community/presentation/community_screen.dart';
 import 'features/achievements/presentation/achievements_screen.dart';
+import 'features/voice/presentation/voice_assistant_screen.dart';
+import 'features/doctor/presentation/doctor_dashboard_screen.dart';
+import 'features/doctor/presentation/patient_detail_screen.dart';
+import 'features/doctor/presentation/assign_plan_screen.dart';
+import 'features/doctor/presentation/compose_guidance_note_screen.dart';
 import 'services/notification_service.dart';
 
 /// Entry point for CARE-AI.
@@ -48,6 +54,12 @@ void main() async {
   // Initialize Firebase
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // Enable offline persistence with unlimited cache
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
   // Validate environment configuration
@@ -138,6 +150,23 @@ class CareAiApp extends StatelessWidget {
         '/about': (context) => const AboutScreen(),
         '/community': (context) => const CommunityScreen(),
         '/achievements': (context) => const AchievementsScreen(),
+        '/voice-assistant': (context) => const VoiceAssistantScreen(),
+        '/doctor-dashboard': (context) => const DoctorDashboardScreen(),
+        '/patient-detail': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          return PatientDetailScreen(
+            childId: args?['childId'] ?? '',
+            childName: args?['childName'] ?? 'Unknown Patient',
+          );
+        },
+        '/assign-plan': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          return AssignPlanScreen(childId: args?['childId'] ?? '');
+        },
+        '/compose-note': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          return ComposeGuidanceNoteScreen(childId: args?['childId'] ?? '');
+        },
       },
     );
   }

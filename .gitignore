@@ -46,3 +46,8 @@ google-services.json
 GoogleService-Info.plist
 
 .env
+\node_modules
+\functions\node_modules
+\functions\node_modules\firebase-admin
+
+

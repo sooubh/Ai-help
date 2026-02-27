@@ -11,6 +11,10 @@ import '../../activities/presentation/modules_library_screen.dart';
 import '../../progress/presentation/progress_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import 'package:provider/provider.dart';
+import 'package:shimmer/shimmer.dart';
+import '../../../models/recommendation_model.dart';
+import '../../../models/guidance_note_model.dart';
+import '../../../services/ai_service.dart';
 
 /// Premium Smart Dashboard — central hub of the CARE-AI user app.
 /// Shows greeting, child summary, quick actions, today's plan,
@@ -28,6 +32,10 @@ class _HomeScreenState extends State<HomeScreen> {
   ChildProfileModel? _childProfile;
   List<ChildProfileModel> _allChildren = [];
   bool _isLoadingProfile = true;
+  Map<String, dynamic> _weeklyStats = {'count': 0, 'minutes': 0, 'streak': 0};
+
+  List<RecommendationModel>? _recommendations;
+  bool _isLoadingRecommendations = false;
 
   @override
   void initState() {
@@ -39,12 +47,17 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final profiles = await _firebaseService.getChildProfiles();
       final selected = profiles.isNotEmpty ? profiles.first : null;
+      final stats = await _firebaseService.getWeeklyStats();
       if (mounted) {
         setState(() {
           _allChildren = profiles;
           _childProfile = selected;
+          _weeklyStats = stats;
           _isLoadingProfile = false;
         });
+        if (selected != null) {
+          _fetchRecommendations(selected);
+        }
       }
     } catch (_) {
       if (mounted) setState(() => _isLoadingProfile = false);
@@ -52,7 +65,47 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _switchChild(ChildProfileModel child) {
-    setState(() => _childProfile = child);
+    setState(() {
+      _childProfile = child;
+      _recommendations = null;
+    });
+    _fetchRecommendations(child);
+  }
+
+  Future<void> _fetchRecommendations(ChildProfileModel profile) async {
+    final childId = profile.id;
+    if (childId == null) return;
+
+    setState(() => _isLoadingRecommendations = true);
+
+    try {
+      final cached = await _firebaseService.getDailyRecommendations(childId);
+      if (cached != null && cached.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _recommendations = cached;
+            _isLoadingRecommendations = false;
+          });
+        }
+        return;
+      }
+
+      if (!mounted) return;
+      final aiService = context.read<AiService>();
+      final newRecs = await aiService.getRecommendations(profile);
+      await _firebaseService.saveRecommendations(childId, newRecs);
+
+      if (mounted) {
+        setState(() {
+          _recommendations = newRecs;
+          _isLoadingRecommendations = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingRecommendations = false);
+      }
+    }
   }
 
   @override
@@ -69,6 +122,9 @@ class _HomeScreenState extends State<HomeScreen> {
             isLoading: _isLoadingProfile,
             onRefresh: _loadChildProfile,
             onSwitchChild: _switchChild,
+            weeklyStats: _weeklyStats,
+            recommendations: _recommendations,
+            isLoadingRecommendations: _isLoadingRecommendations,
           ),
           const ModulesLibraryScreen(),
           const ProgressScreen(),
@@ -152,6 +208,9 @@ class _DashboardTab extends StatelessWidget {
   final bool isLoading;
   final VoidCallback onRefresh;
   final ValueChanged<ChildProfileModel> onSwitchChild;
+  final Map<String, dynamic> weeklyStats;
+  final List<RecommendationModel>? recommendations;
+  final bool isLoadingRecommendations;
 
   const _DashboardTab({
     required this.childProfile,
@@ -159,6 +218,9 @@ class _DashboardTab extends StatelessWidget {
     required this.isLoading,
     required this.onRefresh,
     required this.onSwitchChild,
+    required this.weeklyStats,
+    required this.recommendations,
+    required this.isLoadingRecommendations,
   });
 
   @override
@@ -202,6 +264,13 @@ class _DashboardTab extends StatelessWidget {
               _buildQuickActions(context, isDark),
 
               const SizedBox(height: 24),
+
+              // ─── Guidance Notes ──────────────────────────
+              if (childProfile != null)
+                _buildGuidanceNotesSection(context, childProfile!.id!),
+              
+              if (childProfile != null)
+                const SizedBox(height: 12),
 
               // ─── Child Summary or Setup ──────────────────
               if (isLoading)
@@ -380,7 +449,9 @@ class _DashboardTab extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            AppStrings.tagline,
+            weeklyStats['count'] > 0
+                ? '${weeklyStats['count']} activities this week · ${weeklyStats['minutes']} min · ${weeklyStats['streak']} day streak 🔥'
+                : AppStrings.tagline,
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.9),
               fontSize: 14,
@@ -437,6 +508,12 @@ class _DashboardTab extends StatelessWidget {
         icon: Icons.smart_toy_rounded,
         gradient: AppGradients.primary,
         onTap: () => Navigator.pushNamed(context, '/chat'),
+      ),
+      _QuickAction(
+        title: 'Voice',
+        icon: Icons.mic_rounded,
+        gradient: AppGradients.hero,
+        onTap: () => Navigator.pushNamed(context, '/voice-assistant'),
       ),
       _QuickAction(
         title: AppStrings.games,
@@ -679,41 +756,192 @@ class _DashboardTab extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          AppStrings.recommendations,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              AppStrings.recommendations,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            if (isLoadingRecommendations)
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
               ),
+          ],
         ).animate().fadeIn(delay: 700.ms),
         const SizedBox(height: 12),
 
-        // Sample recommendation cards
-        ..._buildSampleRecommendations(context, isDark),
+        if (isLoadingRecommendations && (recommendations == null || recommendations!.isEmpty))
+          ...List.generate(3, (index) => _buildShimmerRecommendation(isDark))
+        else if (recommendations != null && recommendations!.isNotEmpty)
+          ...recommendations!.map((rec) => _buildDynamicRecommendation(context, rec, isDark))
+        else
+          // Fallback
+          ..._buildSampleRecommendations(context, isDark),
       ],
     );
   }
 
-  List<Widget> _buildSampleRecommendations(BuildContext context, bool isDark) {
-    final items = [
-      _RecommendationItem(
-        title: 'Communication Practice',
-        subtitle: '10 min • Picture card activity',
-        icon: Icons.chat_bubble_rounded,
-        color: AppColors.primary,
+  Widget _buildDynamicRecommendation(BuildContext context, RecommendationModel item, bool isDark) {
+    IconData icon = Icons.check_circle_outline_rounded;
+    Color color = AppColors.primary;
+    
+    final lowerTitle = item.title.toLowerCase();
+    final lowerReason = item.reason.toLowerCase();
+    if (lowerTitle.contains('sensory') || lowerTitle.contains('play') || lowerReason.contains('sensory')) {
+      icon = Icons.touch_app_rounded;
+      color = AppColors.accent;
+    } else if (lowerTitle.contains('communication') || lowerTitle.contains('speech') || lowerReason.contains('speech')) {
+      icon = Icons.chat_bubble_rounded;
+      color = AppColors.primary;
+    } else if (lowerTitle.contains('motor') || lowerTitle.contains('move') || lowerReason.contains('motor')) {
+      icon = Icons.sports_handball_rounded;
+      color = AppColors.secondary;
+    } else if (lowerTitle.contains('focus') || lowerTitle.contains('attention')) {
+      icon = Icons.psychology_rounded;
+      color = AppColors.purple;
+    } else if (lowerTitle.contains('calm') || lowerTitle.contains('breath')) {
+      icon = Icons.spa_rounded;
+      color = const Color(0xFF10B981);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: isDark ? [] : AppShadows.subtle,
+          border: isDark ? Border.all(color: AppColors.darkBorder.withValues(alpha: 0.3)) : null,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.timer_outlined, size: 12, color: AppColors.textSecondary),
+                      const SizedBox(width: 4),
+                      Text(
+                        item.duration,
+                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    item.reason,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 20,
+              color: isDark ? Colors.white38 : Colors.black26,
+            ),
+          ],
+        ),
       ),
-      _RecommendationItem(
+    ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.1, duration: 300.ms, curve: Curves.easeOut);
+  }
+
+  Widget _buildShimmerRecommendation(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Shimmer.fromColors(
+        baseColor: isDark ? Colors.white10 : Colors.grey[200]!,
+        highlightColor: isDark ? Colors.white24 : Colors.grey[100]!,
+        child: Container(
+          height: 90,
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkCardBackground : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildSampleRecommendations(BuildContext context, bool isDark) {
+    final items = <_RecommendationItem>[];
+    final conditions = childProfile?.conditions ?? [];
+
+    // Always show communication
+    items.add(const _RecommendationItem(
+      title: 'Communication Practice',
+      subtitle: '10 min • Picture card activity',
+      icon: Icons.chat_bubble_rounded,
+      color: AppColors.primary,
+    ));
+
+    // Condition-based recommendations
+    if (conditions.any((c) => c.toLowerCase().contains('asd') ||
+        c.toLowerCase().contains('autism') ||
+        c.toLowerCase().contains('sensory'))) {
+      items.add(const _RecommendationItem(
         title: 'Sensory Play Time',
         subtitle: '15 min • Texture exploration',
         icon: Icons.touch_app_rounded,
         color: AppColors.accent,
-      ),
-      _RecommendationItem(
-        title: 'Motor Skills Exercise',
-        subtitle: '10 min • Stacking blocks',
-        icon: Icons.sports_handball_rounded,
-        color: AppColors.secondary,
-      ),
-    ];
+      ));
+    }
+
+    if (conditions.any((c) => c.toLowerCase().contains('adhd') ||
+        c.toLowerCase().contains('attention'))) {
+      items.add(const _RecommendationItem(
+        title: 'Focus Training',
+        subtitle: '10 min • Attention exercise',
+        icon: Icons.psychology_rounded,
+        color: AppColors.purple,
+      ));
+    }
+
+    // Always show motor skills
+    items.add(const _RecommendationItem(
+      title: 'Motor Skills Exercise',
+      subtitle: '10 min • Stacking blocks',
+      icon: Icons.sports_handball_rounded,
+      color: AppColors.secondary,
+    ));
+
+    // Wellness recommendation
+    items.add(const _RecommendationItem(
+      title: 'Breathing Exercise',
+      subtitle: '5 min • Calming activity',
+      icon: Icons.spa_rounded,
+      color: Color(0xFF10B981),
+    ));
 
     return items.asMap().entries.map((entry) {
       final index = entry.key;
@@ -827,6 +1055,77 @@ class _DashboardTab extends StatelessWidget {
     if (hour < 12) return 'Good Morning';
     if (hour < 17) return 'Good Afternoon';
     return 'Good Evening';
+  }
+
+  Widget _buildGuidanceNotesSection(BuildContext context, String childId) {
+    return StreamBuilder<List<GuidanceNoteModel>>(
+      stream: FirebaseService().watchGuidanceNotes(childId),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final notes = snapshot.data!;
+        final unreadNotes = notes.where((note) => !note.isRead).toList();
+
+        if (unreadNotes.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Doctor Notes',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            ...unreadNotes.map((note) => Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  color: AppColors.infoLight,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: const BorderSide(color: AppColors.info),
+                  ),
+                  child: ListTile(
+                    leading: const Icon(Icons.mark_email_unread, color: AppColors.info),
+                    title: Text(note.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text('From: ${note.doctorName}'),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.check_circle_outline),
+                      onPressed: () {
+                        FirebaseService().markGuidanceNoteRead(note.id);
+                      },
+                    ),
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: Text(note.title),
+                          content: SingleChildScrollView(child: Text(note.content)),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('Close'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                FirebaseService().markGuidanceNoteRead(note.id);
+                                Navigator.pop(ctx);
+                              },
+                              child: const Text('Mark as Read'),
+                            )
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                )),
+          ],
+        ).animate().fadeIn();
+      },
+    );
   }
 }
 

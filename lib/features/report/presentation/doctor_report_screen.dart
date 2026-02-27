@@ -29,6 +29,10 @@ class _DoctorReportScreenState extends State<DoctorReportScreen> {
     try {
       final childProfile = await _firebaseService.getChildProfile();
       final userProfile = await _firebaseService.getUserProfile();
+      final skillProgress = await _firebaseService.getSkillProgress();
+      final weeklyStats = await _firebaseService.getWeeklyStats();
+      final activityLogs = await _firebaseService.getActivityLogs(limit: 5);
+      final milestones = await _firebaseService.getMilestones();
 
       final buf = StringBuffer();
 
@@ -85,38 +89,49 @@ class _DoctorReportScreenState extends State<DoctorReportScreen> {
         buf.writeln();
       }
 
+      // Real skill progress from activity logs
       buf.writeln('━━━ SKILL PROGRESS ━━━━━━━━━━━━━━━━━━');
-      buf.writeln('Communication:  ████████████████░░░░░░  72%');
-      buf.writeln('Motor Skills:   ███████████░░░░░░░░░░░  55%');
-      buf.writeln('Social Skills:  █████████░░░░░░░░░░░░░  45%');
-      buf.writeln('Sensory:        ██████████████░░░░░░░░  68%');
+      if (skillProgress.isEmpty) {
+        buf.writeln('No skill data available yet.');
+      } else {
+        for (final entry in skillProgress.entries) {
+          final pct = (entry.value * 100).toInt();
+          final filled = (pct / 5).round();
+          final empty = 20 - filled;
+          buf.writeln('${entry.key.padRight(16)} ${'█' * filled}${'░' * empty}  $pct%');
+        }
+      }
       buf.writeln();
 
+      // Real weekly summary
       buf.writeln('━━━ WEEKLY SUMMARY ━━━━━━━━━━━━━━━━━━');
-      buf.writeln('Activities Completed: 12');
-      buf.writeln('Total Minutes: 85');
-      buf.writeln('Current Streak: 5 days');
+      buf.writeln('Activities Completed: ${weeklyStats['count']}');
+      buf.writeln('Total Minutes: ${weeklyStats['minutes']}');
+      buf.writeln('Current Streak: ${weeklyStats['streak']} days');
       buf.writeln();
 
+      // Real recent activities
       buf.writeln('━━━ RECENT ACTIVITIES ━━━━━━━━━━━━━━━');
-      buf.writeln('✓ Picture Card Communication (10 min) — Today');
-      buf.writeln('⏳ Texture Exploration (8 min) — Today');
-      buf.writeln('✓ Block Stacking (10 min) — Yesterday');
-      buf.writeln('— Emotion Matching (skipped) — Yesterday');
-      buf.writeln('✓ Breathing Exercise (5 min) — 2 days ago');
+      if (activityLogs.isEmpty) {
+        buf.writeln('No activities logged yet.');
+      } else {
+        for (final log in activityLogs) {
+          final mins = (log.durationSeconds / 60).round();
+          final ago = _timeAgo(log.completedAt);
+          buf.writeln('✓ ${log.activityTitle} ($mins min) — $ago');
+        }
+      }
       buf.writeln();
 
+      // Real milestones
       buf.writeln('━━━ MILESTONES ACHIEVED ━━━━━━━━━━━━━');
-      buf.writeln('🗣️ First Word! — 3 days ago (Communication)');
-      buf.writeln('🧱 Stacked 5 Blocks — 1 week ago (Motor Skills)');
-      buf.writeln('🤝 Shared a Toy — 2 weeks ago (Social Skills)');
-      buf.writeln();
-
-      buf.writeln('━━━ OBSERVATIONS ━━━━━━━━━━━━━━━━━━━━');
-      buf.writeln('• Child shows strong engagement with visual activities');
-      buf.writeln('• Communication practice is progressing steadily');
-      buf.writeln('• Sensory tolerance has improved over the past 2 weeks');
-      buf.writeln('• Motor skill activities require continued focus');
+      if (milestones.isEmpty) {
+        buf.writeln('No milestones recorded yet.');
+      } else {
+        for (final m in milestones) {
+          buf.writeln('${m['emoji'] ?? '⭐'} ${m['title'] ?? 'Milestone'} — ${m['category'] ?? ''}');
+        }
+      }
       buf.writeln();
 
       buf.writeln('═══════════════════════════════════════');
@@ -141,6 +156,15 @@ class _DoctorReportScreenState extends State<DoctorReportScreen> {
         });
       }
     }
+  }
+
+  String _timeAgo(DateTime date) {
+    final diff = DateTime.now().difference(date);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays == 1) return 'Yesterday';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${date.day}/${date.month}';
   }
 
   @override

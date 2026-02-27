@@ -242,6 +242,12 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
       actions: [
+        // Voice Assistant toggle
+        IconButton(
+          onPressed: () => Navigator.pushNamed(context, '/voice-assistant'),
+          icon: const Icon(Icons.mic_rounded, size: 22),
+          tooltip: 'Voice Assistant',
+        ),
         // TTS toggle
         IconButton(
           onPressed: () {

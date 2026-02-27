@@ -2,11 +2,57 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../services/firebase_service.dart';
+import '../../../models/activity_log_model.dart';
 
-/// Progress tracking screen — overview, charts, milestones.
-/// Uses basic Flutter widgets for charts; `fl_chart` can be integrated later.
-class ProgressScreen extends StatelessWidget {
+/// Progress tracking screen — real-time data from Firestore.
+/// Shows weekly stats, skill progress, activity history, milestones, weekly trend.
+class ProgressScreen extends StatefulWidget {
   const ProgressScreen({super.key});
+
+  @override
+  State<ProgressScreen> createState() => _ProgressScreenState();
+}
+
+class _ProgressScreenState extends State<ProgressScreen> {
+  final _firebaseService = FirebaseService();
+  bool _isLoading = true;
+
+  // Real data from Firestore
+  Map<String, dynamic> _weeklyStats = {'count': 0, 'minutes': 0, 'streak': 0};
+  Map<String, double> _skillProgress = {};
+  List<ActivityLogModel> _activityLogs = [];
+  List<Map<String, dynamic>> _milestones = [];
+  List<int> _dailyCounts = List.filled(7, 0);
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final stats = await _firebaseService.getWeeklyStats();
+      final skills = await _firebaseService.getSkillProgress();
+      final logs = await _firebaseService.getActivityLogs(limit: 5);
+      final milestones = await _firebaseService.getMilestones();
+      final counts = await _firebaseService.getDailyActivityCounts();
+
+      if (mounted) {
+        setState(() {
+          _weeklyStats = stats;
+          _skillProgress = skills;
+          _activityLogs = logs;
+          _milestones = milestones;
+          _dailyCounts = counts;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,40 +77,47 @@ class ProgressScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 60),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ─── Weekly Summary Card ───────────────────
-            _buildWeeklySummary(context, isDark),
-            const SizedBox(height: 20),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadData,
+              color: AppColors.primary,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 60),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ─── Weekly Summary Card ───────────────────
+                    _buildWeeklySummary(context, isDark),
+                    const SizedBox(height: 20),
 
-            // ─── Skill Progress Rings ──────────────────
-            _sectionTitle(context, 'Skill Progress'),
-            const SizedBox(height: 12),
-            _buildSkillRings(context, isDark),
-            const SizedBox(height: 24),
+                    // ─── Skill Progress Rings ──────────────────
+                    _sectionTitle(context, 'Skill Progress'),
+                    const SizedBox(height: 12),
+                    _buildSkillRings(context, isDark),
+                    const SizedBox(height: 24),
 
-            // ─── Activity History ──────────────────────
-            _sectionTitle(context, 'Recent Activities'),
-            const SizedBox(height: 12),
-            _buildActivityHistory(context, isDark),
-            const SizedBox(height: 24),
+                    // ─── Activity History ──────────────────────
+                    _sectionTitle(context, 'Recent Activities'),
+                    const SizedBox(height: 12),
+                    _buildActivityHistory(context, isDark),
+                    const SizedBox(height: 24),
 
-            // ─── Milestones ────────────────────────────
-            _sectionTitle(context, 'Milestones Achieved'),
-            const SizedBox(height: 12),
-            _buildMilestones(context, isDark),
-            const SizedBox(height: 24),
+                    // ─── Milestones ────────────────────────────
+                    _sectionTitle(context, 'Milestones Achieved'),
+                    const SizedBox(height: 12),
+                    _buildMilestones(context, isDark),
+                    const SizedBox(height: 24),
 
-            // ─── Weekly Trend ──────────────────────────
-            _sectionTitle(context, 'Weekly Activity Trend'),
-            const SizedBox(height: 12),
-            _buildWeeklyTrend(context, isDark),
-          ],
-        ),
-      ),
+                    // ─── Weekly Trend ──────────────────────────
+                    _sectionTitle(context, 'Weekly Activity Trend'),
+                    const SizedBox(height: 12),
+                    _buildWeeklyTrend(context, isDark),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 
@@ -80,30 +133,41 @@ class ProgressScreen extends StatelessWidget {
   String _generateReport() {
     final buffer = StringBuffer();
     buffer.writeln('📊 CARE-AI Progress Report');
-    buffer.writeln('Generated: ${DateTime.now().toIso8601String().substring(0, 10)}');
+    buffer.writeln(
+        'Generated: ${DateTime.now().toIso8601String().substring(0, 10)}');
     buffer.writeln('─────────────────────────');
     buffer.writeln();
     buffer.writeln('📈 Weekly Summary');
-    buffer.writeln('  Activities Completed: 12');
-    buffer.writeln('  Total Minutes: 85');
-    buffer.writeln('  Current Streak: 5 days');
+    buffer.writeln('  Activities Completed: ${_weeklyStats['count']}');
+    buffer.writeln('  Total Minutes: ${_weeklyStats['minutes']}');
+    buffer.writeln('  Current Streak: ${_weeklyStats['streak']} days');
     buffer.writeln();
     buffer.writeln('🎯 Skill Progress');
-    buffer.writeln('  Communication: 72%');
-    buffer.writeln('  Motor Skills: 55%');
-    buffer.writeln('  Social: 45%');
-    buffer.writeln('  Sensory: 68%');
+    if (_skillProgress.isEmpty) {
+      buffer.writeln('  No activities logged yet.');
+    }
+    for (final entry in _skillProgress.entries) {
+      buffer.writeln(
+          '  ${entry.key}: ${(entry.value * 100).toInt()}%');
+    }
     buffer.writeln();
-    buffer.writeln('🏆 Recent Milestones');
-    buffer.writeln('  🗣️ First Word! (3 days ago)');
-    buffer.writeln('  🧱 Stacked 5 Blocks (1 week ago)');
-    buffer.writeln('  🤝 Shared a Toy (2 weeks ago)');
+    buffer.writeln('🏆 Milestones');
+    if (_milestones.isEmpty) {
+      buffer.writeln('  No milestones yet.');
+    }
+    for (final m in _milestones) {
+      buffer.writeln(
+          '  ${m['emoji'] ?? '⭐'} ${m['title'] ?? 'Milestone'}');
+    }
     buffer.writeln();
     buffer.writeln('✅ Recent Activities');
-    buffer.writeln('  ✓ Picture Card Communication (10 min)');
-    buffer.writeln('  ⏳ Texture Exploration (8 min)');
-    buffer.writeln('  ✓ Block Stacking (10 min)');
-    buffer.writeln('  ✓ Breathing Exercise (5 min)');
+    if (_activityLogs.isEmpty) {
+      buffer.writeln('  No activities logged yet.');
+    }
+    for (final log in _activityLogs) {
+      final mins = (log.durationSeconds / 60).round();
+      buffer.writeln('  ✓ ${log.activityTitle} ($mins min)');
+    }
     buffer.writeln();
     buffer.writeln('─────────────────────────');
     buffer.writeln('Generated by CARE-AI • AI Parenting Companion');
@@ -149,9 +213,21 @@ class ProgressScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _SummaryItem(label: 'Activities', value: '12', icon: Icons.extension_rounded),
-              _SummaryItem(label: 'Minutes', value: '85', icon: Icons.timer_rounded),
-              _SummaryItem(label: 'Streak', value: '5 days', icon: Icons.local_fire_department_rounded),
+              _SummaryItem(
+                label: 'Activities',
+                value: '${_weeklyStats['count']}',
+                icon: Icons.extension_rounded,
+              ),
+              _SummaryItem(
+                label: 'Minutes',
+                value: '${_weeklyStats['minutes']}',
+                icon: Icons.timer_rounded,
+              ),
+              _SummaryItem(
+                label: 'Streak',
+                value: '${_weeklyStats['streak']} d',
+                icon: Icons.local_fire_department_rounded,
+              ),
             ],
           ),
         ],
@@ -164,17 +240,26 @@ class ProgressScreen extends StatelessWidget {
   }
 
   Widget _buildSkillRings(BuildContext context, bool isDark) {
-    final skills = [
-      _SkillData('Communication', 0.72, AppColors.primary),
-      _SkillData('Motor Skills', 0.55, AppColors.accent),
-      _SkillData('Social', 0.45, const Color(0xFF10B981)),
-      _SkillData('Sensory', 0.68, AppColors.purple),
+    if (_skillProgress.isEmpty) {
+      return _buildEmptyState(
+          context, isDark, 'Complete activities to see skill progress.');
+    }
+
+    final colors = [
+      AppColors.primary,
+      AppColors.accent,
+      const Color(0xFF10B981),
+      AppColors.purple,
+      const Color(0xFFF59E0B),
     ];
+
+    final entries = _skillProgress.entries.toList();
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: skills.asMap().entries.map((entry) {
+      children: entries.asMap().entries.map((entry) {
         final skill = entry.value;
+        final color = colors[entry.key % colors.length];
         return Column(
           children: [
             SizedBox(
@@ -184,20 +269,20 @@ class ProgressScreen extends StatelessWidget {
                 alignment: Alignment.center,
                 children: [
                   CircularProgressIndicator(
-                    value: skill.progress,
+                    value: skill.value,
                     backgroundColor: isDark
                         ? AppColors.darkSurfaceVariant
                         : AppColors.surfaceVariant,
-                    color: skill.color,
+                    color: color,
                     strokeWidth: 6,
                     strokeCap: StrokeCap.round,
                   ),
                   Text(
-                    '${(skill.progress * 100).toInt()}%',
+                    '${(skill.value * 100).toInt()}%',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
-                      color: skill.color,
+                      color: color,
                     ),
                   ),
                 ],
@@ -205,7 +290,9 @@ class ProgressScreen extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              skill.name,
+              skill.key.length > 10
+                  ? '${skill.key.substring(0, 10)}…'
+                  : skill.key,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     fontSize: 11,
                   ),
@@ -220,17 +307,17 @@ class ProgressScreen extends StatelessWidget {
   }
 
   Widget _buildActivityHistory(BuildContext context, bool isDark) {
-    final activities = [
-      _ActivityItem('Picture Card Communication', 'Completed', AppColors.success, '10 min', 'Today'),
-      _ActivityItem('Texture Exploration', 'In Progress', AppColors.warning, '8 min', 'Today'),
-      _ActivityItem('Block Stacking', 'Completed', AppColors.success, '10 min', 'Yesterday'),
-      _ActivityItem('Emotion Matching', 'Skipped', AppColors.textTertiary, '—', 'Yesterday'),
-      _ActivityItem('Breathing Exercise', 'Completed', AppColors.success, '5 min', '2 days ago'),
-    ];
+    if (_activityLogs.isEmpty) {
+      return _buildEmptyState(
+          context, isDark, 'No activities completed yet. Start your first!');
+    }
 
     return Column(
-      children: activities.asMap().entries.map((entry) {
-        final activity = entry.value;
+      children: _activityLogs.asMap().entries.map((entry) {
+        final log = entry.value;
+        final mins = (log.durationSeconds / 60).round();
+        final ago = _timeAgo(log.completedAt);
+
         return Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -240,7 +327,8 @@ class ProgressScreen extends StatelessWidget {
                 : AppColors.cardBackground,
             borderRadius: BorderRadius.circular(14),
             border: isDark
-                ? Border.all(color: AppColors.darkBorder.withValues(alpha: 0.2))
+                ? Border.all(
+                    color: AppColors.darkBorder.withValues(alpha: 0.2))
                 : null,
           ),
           child: Row(
@@ -248,8 +336,8 @@ class ProgressScreen extends StatelessWidget {
               Container(
                 width: 8,
                 height: 8,
-                decoration: BoxDecoration(
-                  color: activity.statusColor,
+                decoration: const BoxDecoration(
+                  color: AppColors.success,
                   shape: BoxShape.circle,
                 ),
               ),
@@ -259,16 +347,18 @@ class ProgressScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      activity.title,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w500,
-                          ),
+                      log.activityTitle,
+                      style:
+                          Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w500,
+                              ),
                     ),
                     Text(
-                      '${activity.status} • ${activity.duration} • ${activity.date}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            fontSize: 11,
-                          ),
+                      'Completed • $mins min • $ago',
+                      style:
+                          Theme.of(context).textTheme.bodySmall?.copyWith(
+                                fontSize: 11,
+                              ),
                     ),
                   ],
                 ),
@@ -284,15 +374,18 @@ class ProgressScreen extends StatelessWidget {
   }
 
   Widget _buildMilestones(BuildContext context, bool isDark) {
-    final milestones = [
-      _MilestoneData('First Word!', 'Communication', '🗣️', '3 days ago'),
-      _MilestoneData('Stacked 5 Blocks', 'Motor Skills', '🧱', '1 week ago'),
-      _MilestoneData('Shared a Toy', 'Social Skills', '🤝', '2 weeks ago'),
-    ];
+    if (_milestones.isEmpty) {
+      return _buildEmptyState(
+          context, isDark, 'Milestones will appear as your child progresses.');
+    }
 
     return Column(
-      children: milestones.asMap().entries.map((entry) {
+      children: _milestones.asMap().entries.map((entry) {
         final milestone = entry.value;
+        final title = milestone['title'] ?? 'Milestone';
+        final category = milestone['category'] ?? '';
+        final emoji = milestone['emoji'] ?? '⭐';
+
         return Container(
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(14),
@@ -312,22 +405,24 @@ class ProgressScreen extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Text(milestone.emoji, style: const TextStyle(fontSize: 28)),
+              Text(emoji, style: const TextStyle(fontSize: 28)),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      milestone.title,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                      title,
+                      style:
+                          Theme.of(context).textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
                     ),
-                    Text(
-                      '${milestone.category} • ${milestone.date}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
+                    if (category.isNotEmpty)
+                      Text(
+                        category,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                   ],
                 ),
               ),
@@ -347,19 +442,25 @@ class ProgressScreen extends StatelessWidget {
   }
 
   Widget _buildWeeklyTrend(BuildContext context, bool isDark) {
-    // Simple bar chart using basic widgets
-    final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final values = [0.6, 0.8, 0.4, 1.0, 0.7, 0.3, 0.0];
+    final now = DateTime.now();
+    final days = List.generate(7, (i) {
+      final d = now.subtract(Duration(days: 6 - i));
+      return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d.weekday - 1];
+    });
+
+    final maxCount =
+        _dailyCounts.isEmpty ? 1 : _dailyCounts.reduce((a, b) => a > b ? a : b);
+    final maxVal = maxCount == 0 ? 1 : maxCount;
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.darkCardBackground
-            : AppColors.cardBackground,
+        color:
+            isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
         borderRadius: BorderRadius.circular(18),
         border: isDark
-            ? Border.all(color: AppColors.darkBorder.withValues(alpha: 0.2))
+            ? Border.all(
+                color: AppColors.darkBorder.withValues(alpha: 0.2))
             : null,
       ),
       child: Column(
@@ -371,13 +472,25 @@ class ProgressScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: days.asMap().entries.map((entry) {
                 final index = entry.key;
-                final value = values[index];
+                final value =
+                    _dailyCounts.length > index ? _dailyCounts[index] : 0;
+                final normalized = value / maxVal;
                 return Column(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
+                    if (value > 0)
+                      Text(
+                        '$value',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    const SizedBox(height: 2),
                     Container(
                       width: 28,
-                      height: (100 * value).clamp(4, 100),
+                      height: (100 * normalized).clamp(4, 100).toDouble(),
                       decoration: BoxDecoration(
                         gradient: value > 0
                             ? LinearGradient(
@@ -397,7 +510,8 @@ class ProgressScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                       ),
                     ).animate().fadeIn(
-                          delay: Duration(milliseconds: 300 + (index * 60)),
+                          delay:
+                              Duration(milliseconds: 300 + (index * 60)),
                           duration: 400.ms,
                         ),
                   ],
@@ -420,6 +534,49 @@ class ProgressScreen extends StatelessWidget {
         ],
       ),
     ).animate().fadeIn(delay: 400.ms, duration: 500.ms);
+  }
+
+  Widget _buildEmptyState(
+      BuildContext context, bool isDark, String message) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color:
+            isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: isDark
+            ? Border.all(
+                color: AppColors.darkBorder.withValues(alpha: 0.2))
+            : null,
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.hourglass_empty_rounded,
+            size: 36,
+            color: isDark
+                ? AppColors.darkTextTertiary
+                : AppColors.textTertiary,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            style: Theme.of(context).textTheme.bodySmall,
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 300.ms);
+  }
+
+  String _timeAgo(DateTime date) {
+    final diff = DateTime.now().difference(date);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays == 1) return 'Yesterday';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${date.day}/${date.month}';
   }
 }
 
@@ -461,31 +618,4 @@ class _SummaryItem extends StatelessWidget {
       ],
     );
   }
-}
-
-class _SkillData {
-  final String name;
-  final double progress;
-  final Color color;
-
-  const _SkillData(this.name, this.progress, this.color);
-}
-
-class _ActivityItem {
-  final String title;
-  final String status;
-  final Color statusColor;
-  final String duration;
-  final String date;
-
-  const _ActivityItem(this.title, this.status, this.statusColor, this.duration, this.date);
-}
-
-class _MilestoneData {
-  final String title;
-  final String category;
-  final String emoji;
-  final String date;
-
-  const _MilestoneData(this.title, this.category, this.emoji, this.date);
 }

@@ -5,6 +5,11 @@ import '../models/user_model.dart';
 import '../models/child_profile_model.dart';
 import '../models/chat_message_model.dart';
 import '../models/activity_log_model.dart';
+import '../models/user_event_model.dart';
+import '../models/recommendation_model.dart';
+import '../models/game_session_model.dart';
+import '../models/guidance_note_model.dart';
+import '../models/post_model.dart';
 
 /// Centralized Firebase service handling Auth, Firestore reads/writes.
 class FirebaseService {
@@ -24,6 +29,7 @@ class FirebaseService {
     String email,
     String password, {
     String? displayName,
+    String role = 'parent',
   }) async {
     final credential = await _auth.createUserWithEmailAndPassword(
       email: email.trim(),
@@ -40,7 +46,7 @@ class FirebaseService {
         uid: user.uid,
         email: email.trim(),
         displayName: displayName?.trim(),
-        role: 'parent',
+        role: role,
         createdAt: DateTime.now(),
         lastLoginAt: DateTime.now(),
       );
@@ -67,7 +73,7 @@ class FirebaseService {
   }
 
   /// Sign in with Google. Returns null if user cancels the picker.
-  Future<User?> signInWithGoogle() async {
+  Future<User?> signInWithGoogle({String role = 'parent'}) async {
     // Trigger the native Google Sign-In flow
     final googleUser = await GoogleSignIn().signIn();
     if (googleUser == null) return null; // User cancelled
@@ -96,7 +102,7 @@ class FirebaseService {
           uid: user.uid,
           email: user.email ?? '',
           displayName: user.displayName,
-          role: 'parent',
+          role: role,
           createdAt: DateTime.now(),
           lastLoginAt: DateTime.now(),
         );
@@ -406,4 +412,402 @@ class FirebaseService {
       'streak': streak,
     };
   }
+
+
+
+  // ─── Skill Progress (aggregated from activity logs) ────
+
+  /// Calculate skill progress from activity logs by category.
+  Future<Map<String, double>> getSkillProgress() async {
+    final uid = currentUser?.uid;
+    if (uid == null) return {};
+
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('activity_logs')
+        .get();
+
+    if (snapshot.docs.isEmpty) return {};
+
+    // Count activities per category
+    final categoryCounts = <String, int>{};
+    for (final doc in snapshot.docs) {
+      final cat = doc.data()['category'] as String? ?? 'Other';
+      categoryCounts[cat] = (categoryCounts[cat] ?? 0) + 1;
+    }
+
+    // Normalize to 0-1 range (10 activities = 100%)
+    final progress = <String, double>{};
+    for (final entry in categoryCounts.entries) {
+      progress[entry.key] = (entry.value / 10).clamp(0.0, 1.0);
+    }
+    return progress;
+  }
+
+  // ─── Daily Activity Counts (for weekly trend) ──────────
+
+  /// Get activity counts for each of the last 7 days.
+  Future<List<int>> getDailyActivityCounts() async {
+    final uid = currentUser?.uid;
+    if (uid == null) return List.filled(7, 0);
+
+    final now = DateTime.now();
+    final weekAgo = now.subtract(const Duration(days: 7));
+
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('activity_logs')
+        .where('completedAt',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(weekAgo))
+        .get();
+
+    // Initialize with 0 for each day (Mon-Sun or last 7 days)
+    final counts = List.filled(7, 0);
+    for (final doc in snapshot.docs) {
+      final ts = (doc.data()['completedAt'] as Timestamp?)?.toDate();
+      if (ts != null) {
+        final daysAgo = now.difference(ts).inDays;
+        if (daysAgo >= 0 && daysAgo < 7) {
+          counts[6 - daysAgo] += 1;
+        }
+      }
+    }
+    return counts;
+  }
+
+  // ─── Daily Plan CRUD ───────────────────────────────────
+
+  /// Save today's plan to Firestore.
+  Future<void> saveDailyPlan(String date, List<Map<String, dynamic>> activities) async {
+    final uid = currentUser?.uid;
+    if (uid == null) return;
+
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('daily_plans')
+        .doc(date)
+        .set({
+      'date': date,
+      'activities': activities,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Get daily plan for a given date.
+  Future<List<Map<String, dynamic>>?> getDailyPlan(String date) async {
+    final uid = currentUser?.uid;
+    if (uid == null) return null;
+
+    final doc = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('daily_plans')
+        .doc(date)
+        .get();
+
+    if (!doc.exists) return null;
+    final data = doc.data();
+    if (data == null || data['activities'] == null) return null;
+    return List<Map<String, dynamic>>.from(data['activities']);
+  }
+
+  // ─── Milestones CRUD ───────────────────────────────────
+
+  /// Save a milestone.
+  Future<void> saveMilestone(Map<String, dynamic> milestone) async {
+    final uid = currentUser?.uid;
+    if (uid == null) return;
+
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('milestones')
+        .add({
+      ...milestone,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Get all milestones.
+  Future<List<Map<String, dynamic>>> getMilestones() async {
+    final uid = currentUser?.uid;
+    if (uid == null) return [];
+
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('milestones')
+        .orderBy('createdAt', descending: true)
+        .limit(20)
+        .get();
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+      data['id'] = doc.id;
+      return data;
+    }).toList();
+  }
+
+  // ─── Mood / Wellness ───────────────────────────────────
+
+  /// Save a mood check-in.
+  Future<void> saveMoodCheckIn(String mood, String? note) async {
+    final uid = currentUser?.uid;
+    if (uid == null) return;
+
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('mood_checkins')
+        .add({
+      'mood': mood,
+      'note': note,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Get mood check-in history.
+  Future<List<Map<String, dynamic>>> getMoodHistory({int limit = 14}) async {
+    final uid = currentUser?.uid;
+    if (uid == null) return [];
+
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('mood_checkins')
+        .orderBy('timestamp', descending: true)
+        .limit(limit)
+        .get();
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+      data['id'] = doc.id;
+      return data;
+    }).toList();
+  }
+
+  // ─── Game Sessions ─────────────────────────────────────
+
+  /// Log a completed therapy game session.
+  Future<void> logGameSession(GameSessionModel session) async {
+    final uid = currentUser?.uid;
+    if (uid == null) return;
+
+    // Save to the dedicated game_sessions collection
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('game_sessions')
+        .add(session.toMap());
+
+    // Also cast it as an activity log so it contributes to the weekly streak & charts
+    final activityLog = ActivityLogModel(
+      activityId: 'game_${session.gameType}',
+      activityTitle: 'Game: ${session.gameType}',
+      category: session.skillCategory,
+      durationSeconds: session.durationSeconds,
+      stepsCompleted: session.score,
+      completedAt: session.completedAt,
+    );
+    await logActivity(activityLog);
+  }
+
+  // ─── User Event Tracking ───────────────────────────────
+
+  /// Track a user event (screen view, feature tap, etc.).
+  Future<void> saveUserEvent(UserEventModel event) async {
+    final uid = currentUser?.uid;
+    if (uid == null) return;
+
+    // Fire-and-forget for performance
+    _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('events')
+        .add(event.toMap());
+  }
+  // ─── AI Recommendations Caching ──────────────────────────
+
+  /// Fetch cached daily recommendations if valid.
+  Future<List<RecommendationModel>?> getDailyRecommendations(String childId) async {
+    final uid = currentUser?.uid;
+    if (uid == null) return null;
+
+    try {
+      final doc = await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('children')
+          .doc(childId)
+          .collection('recommendations')
+          .doc('daily')
+          .get();
+
+      if (!doc.exists) return null;
+
+      final data = doc.data()!;
+      final expiresAt = (data['expiresAt'] as Timestamp).toDate();
+
+      if (DateTime.now().isAfter(expiresAt)) {
+        // Cache expired
+        return null;
+      }
+
+      final items = List<Map<String, dynamic>>.from(data['items'] ?? []);
+      return items.map((e) => RecommendationModel.fromMap(e)).toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Save newly generated daily recommendations.
+  Future<void> saveRecommendations(String childId, List<RecommendationModel> recommendations) async {
+    final uid = currentUser?.uid;
+    if (uid == null || recommendations.isEmpty) return;
+
+    try {
+      final expiresAt = recommendations.first.expiresAt;
+      final itemsMap = recommendations.map((r) => r.toMap()).toList();
+
+      await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('children')
+          .doc(childId)
+          .collection('recommendations')
+          .doc('daily')
+          .set({
+        'expiresAt': Timestamp.fromDate(expiresAt),
+        'items': itemsMap,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {}
+  }
+  // ─── Community Posts ──────────────────────────────────────
+
+  /// Stream of community posts, ordered by latest.
+  Stream<List<PostModel>> getCommunityPosts() {
+    return _firestore
+        .collection('community_posts')
+        .orderBy('createdAt', descending: true)
+        .limit(50)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => PostModel.fromMap(doc.data(), doc.id))
+            .toList());
+  }
+
+  /// Create a new community post.
+  Future<void> createPost(String content, String authorName) async {
+    final uid = currentUser?.uid;
+    if (uid == null) return;
+
+    final post = PostModel(
+      authorId: uid,
+      authorName: authorName,
+      content: content,
+      likes: [],
+    );
+
+    await _firestore.collection('community_posts').add(post.toMap());
+  }
+
+  /// Toggle like status for a community post.
+  Future<void> toggleLikePost(String postId) async {
+    final uid = currentUser?.uid;
+    if (uid == null) return;
+
+    final docRef = _firestore.collection('community_posts').doc(postId);
+    
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(docRef);
+      if (!snapshot.exists) return;
+
+      final likes = List<String>.from(snapshot.data()?['likes'] ?? []);
+      if (likes.contains(uid)) {
+        likes.remove(uid);
+      } else {
+        likes.add(uid);
+      }
+
+      transaction.update(docRef, {'likes': likes});
+    });
+  }
+
+  // ─── Achievements ──────────────────────────────────────────
+
+  /// Get user's unlocked achievements IDs.
+  Stream<List<String>> watchUnlockedAchievementIds() {
+    final uid = currentUser?.uid;
+    if (uid == null) return const Stream.empty();
+
+    return _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('achievements')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => doc.id).toList());
+  }
+
+  /// Unlock a specific achievement.
+  Future<void> unlockAchievement(String achievementId) async {
+    final uid = currentUser?.uid;
+    if (uid == null) return;
+
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('achievements')
+        .doc(achievementId)
+        .set({
+      'unlockedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  // ─── Doctor / Therapist Operations ────────────────────────
+  
+  /// Sends a direct guidance note from the doctor to the parent's dashboard.
+  Future<void> sendGuidanceNote(GuidanceNoteModel note) async {
+    final uid = currentUser?.uid;
+    if (uid == null) throw Exception('Doctor not authenticated');
+
+    await _firestore.collection('guidance_notes').doc(note.id).set(note.toMap());
+  }
+
+  /// Appends a new activity directly to a child's assigned tasks queue.
+  Future<void> assignActivityToChild(String parentUid, String childId, Map<String, dynamic> activity) async {
+    final uid = currentUser?.uid;
+    if (uid == null) throw Exception('Doctor not authenticated');
+
+    final docRef = _firestore
+        .collection('users')
+        .doc(parentUid)
+        .collection('children')
+        .doc(childId);
+
+    await docRef.set({
+      'assigned_tasks': FieldValue.arrayUnion([activity]),
+    }, SetOptions(merge: true));
+  }
+
+  /// Retrieves guidance notes addressed to a specific child
+  Stream<List<GuidanceNoteModel>> watchGuidanceNotes(String childId) {
+    return _firestore
+        .collection('guidance_notes')
+        .where('childId', isEqualTo: childId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => GuidanceNoteModel.fromMap(doc.data(), doc.id))
+            .toList());
+  }
+
+  /// Marks a guidance note as read
+  Future<void> markGuidanceNoteRead(String noteId) async {
+    await _firestore.collection('guidance_notes').doc(noteId).update({'isRead': true});
+  }
 }
+
