@@ -24,6 +24,7 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
+  bool _isDoctor = false;
 
   @override
   void dispose() {
@@ -43,6 +44,7 @@ class _SignupScreenState extends State<SignupScreen> {
         _emailController.text,
         _passwordController.text,
         displayName: _nameController.text.trim(),
+        role: _isDoctor ? 'doctor' : 'parent',
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -51,7 +53,14 @@ class _SignupScreenState extends State<SignupScreen> {
           backgroundColor: AppColors.success,
         ),
       );
-      Navigator.pushReplacementNamed(context, '/profile-setup');
+
+      if (_isDoctor) {
+        // Setup doctor specific workflow (like routing to doctor dashboard)
+        // For MVP, push to /doctor-dashboard 
+        Navigator.pushReplacementNamed(context, '/doctor-dashboard');
+      } else {
+        Navigator.pushReplacementNamed(context, '/profile-setup');
+      }
     } on Exception catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -68,10 +77,14 @@ class _SignupScreenState extends State<SignupScreen> {
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
     try {
-      final user = await _firebaseService.signInWithGoogle();
+      final user = await _firebaseService.signInWithGoogle(role: _isDoctor ? 'doctor' : 'parent');
       if (!mounted) return;
       if (user != null) {
-        Navigator.pushReplacementNamed(context, '/home');
+        if (_isDoctor) {
+          Navigator.pushReplacementNamed(context, '/doctor-dashboard');
+        } else {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
       }
     } on Exception catch (e) {
       if (!mounted) return;
@@ -304,7 +317,29 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 12),
+            
+            // Register as Doctor Checkbox
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                'Register as Healthcare Professional',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              value: _isDoctor,
+              activeColor: AppColors.primary,
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() => _isDoctor = val);
+                }
+              },
+              controlAffinity: ListTileControlAffinity.leading,
+            ),
+
+            const SizedBox(height: 12),
 
             // Sign Up button
             SizedBox(

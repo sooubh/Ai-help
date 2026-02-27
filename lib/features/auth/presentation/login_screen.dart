@@ -40,7 +40,15 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text,
       );
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/home');
+      
+      final profile = await _firebaseService.getUserProfile();
+      if (!mounted) return;
+
+      if (profile?.role == 'doctor') {
+        Navigator.pushReplacementNamed(context, '/doctor-dashboard');
+      } else {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
     } on Exception catch (e) {
       if (!mounted) return;
       _showError(e.toString().replaceAll('Exception: ', ''));
@@ -55,7 +63,14 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = await _firebaseService.signInWithGoogle();
       if (!mounted) return;
       if (user != null) {
-        Navigator.pushReplacementNamed(context, '/home');
+        final profile = await _firebaseService.getUserProfile();
+        if (!mounted) return;
+
+        if (profile?.role == 'doctor') {
+          Navigator.pushReplacementNamed(context, '/doctor-dashboard');
+        } else {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
       }
       // user == null means cancelled — do nothing
     } on Exception catch (e) {
