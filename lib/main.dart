@@ -64,39 +64,65 @@ void main() async {
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
-  // Validate environment configuration
-  EnvConfig.validate();
+  try {
+    // Validate environment configuration
+    EnvConfig.validate();
 
-  // Initialize Gemini AI service
-  final aiService = AiService();
-  aiService.initialize();
+    // Initialize Gemini AI service
+    final aiService = AiService();
+    aiService.initialize();
 
-  // Initialize push notifications
-  final notificationService = NotificationService();
-  await notificationService.init();
+    // Initialize push notifications
+    final notificationService = NotificationService();
+    try {
+      await notificationService.init();
+    } catch (e) {
+      debugPrint('Notification service init failed: $e');
+    }
 
-  // Load saved theme preference
-  final themeProvider = ThemeProvider();
-  await themeProvider.loadTheme();
+    // Load saved theme preference
+    final themeProvider = ThemeProvider();
+    try {
+      await themeProvider.loadTheme();
+    } catch (e) {
+      debugPrint('Theme provider init failed: $e');
+    }
 
-  // Set system UI overlay style
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-    ),
-  );
+    // Set system UI overlay style
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
+    );
 
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider.value(value: themeProvider),
-        Provider.value(value: aiService),
-      ],
-      child: const CareAiApp(),
-    ),
-  );
+    runApp(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: themeProvider),
+          Provider.value(value: aiService),
+        ],
+        child: const CareAiApp(),
+      ),
+    );
+  } catch (e, stack) {
+    debugPrint('Fatal error during startup: $e\n$stack');
+    // Fallback run app so it never gets stuck on black screen
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Text('Startup Error: $e\n\nPlease restart the app.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.red)),
+          ),
+        ),
+      ),
+    );
+  }
+
 }
+
 
 class CareAiApp extends StatefulWidget {
   const CareAiApp({super.key});
