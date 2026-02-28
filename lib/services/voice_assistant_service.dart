@@ -314,12 +314,20 @@ VOICE MODE RULES (in addition to base rules):
     // Get AI response
     try {
       final prompt = '$_voiceSystemAddition\n\nUser said: $text';
-      final response = await _aiService.getResponse(prompt)
-          .timeout(const Duration(seconds: 15));
+      final stream = _aiService.getStreamingResponse(prompt);
+
+      _updateStatus(VoiceStatus.speaking);
+      String fullResponse = '';
+
+      await for (final chunk in stream) {
+        if (_disposed || _session == null) return;
+        fullResponse += chunk;
+        _lastAiText = fullResponse;
+        notifyListeners();
+      }
 
       if (_disposed || _session == null) return;
 
-      _lastAiText = response;
       _session = _session!.copyWith(
         messageCount: _session!.messageCount + 1,
       );
@@ -328,7 +336,7 @@ VOICE MODE RULES (in addition to base rules):
       try {
         await _firebaseService.sendChatMessage(ChatMessageModel(
           id: '',
-          message: response,
+          message: fullResponse,
           sender: 'ai',
           timestamp: DateTime.now(),
         ));
@@ -337,8 +345,7 @@ VOICE MODE RULES (in addition to base rules):
       }
 
       // Speak the response
-      _updateStatus(VoiceStatus.speaking);
-      await _ttsService.speak(response);
+      await _ttsService.speak(fullResponse);
 
       // After speaking, decide next action
       if (_disposed || _session == null) return;
