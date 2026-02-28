@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:io';
 import '../models/user_model.dart';
 import '../models/child_profile_model.dart';
 import '../models/chat_message_model.dart';
@@ -16,6 +18,31 @@ import '../models/post_model.dart';
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+
+  // ─── Storage ──────────────────────────────────────────────────
+
+  /// Uploads a file to Firebase Storage and returns the download URL.
+  /// Enforces a 5MB size limit.
+  Future<String?> uploadFile(File file, String path) async {
+    try {
+      // Check file size (5MB = 5 * 1024 * 1024 bytes)
+      final fileSize = await file.length();
+      if (fileSize > 5 * 1024 * 1024) {
+        throw Exception('File size must be less than 5MB.');
+      }
+
+      final ref = _storage.ref().child(path);
+      final uploadTask = ref.putFile(file);
+      final snapshot = await uploadTask;
+      return await snapshot.ref.getDownloadURL();
+    } catch (e) {
+      if (e.toString().contains('File size must be')) {
+        rethrow;
+      }
+      return null;
+    }
+  }
 
   // ─── Auth ────────────────────────────────────────────────────
 
@@ -855,6 +882,17 @@ class FirebaseService {
     final doc = await _firestore.collection('users').doc(uid).get();
     if (!doc.exists || doc.data() == null) return null;
     return DoctorModel.fromMap(doc.data()!, uid);
+  }
+
+  /// Updates or creates the doctor's profile.
+  Future<void> saveDoctorProfile(DoctorModel profile) async {
+    final uid = currentUser?.uid;
+    if (uid == null) throw Exception('Doctor not authenticated');
+
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .set(profile.toMap(), SetOptions(merge: true));
   }
 
   /// Fetch all parent users and their children to build the doctor's patient list.

@@ -22,6 +22,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _firebaseService = FirebaseService();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _isDoctor = false;
 
   @override
   void dispose() {
@@ -40,14 +41,41 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text,
       );
       if (!mounted) return;
-      
+
       final profile = await _firebaseService.getUserProfile();
       if (!mounted) return;
 
+      // Validate that the user's fetched role matches the selected role
+      // In a real app, you might just rely on the stored role, but this
+      // enforces the selector they chose.
+      if (profile?.role == 'doctor' && !_isDoctor) {
+        _showError('This account belongs to a Doctor. Please switch tabs.');
+        await _firebaseService.signOut();
+        return;
+      } else if (profile?.role == 'parent' && _isDoctor) {
+        _showError('This account belongs to a Parent. Please switch tabs.');
+        await _firebaseService.signOut();
+        return;
+      }
+
       if (profile?.role == 'doctor') {
-        Navigator.pushReplacementNamed(context, '/doctor-dashboard');
+        final docProfile = await _firebaseService.getDoctorProfile();
+        if (!mounted) return;
+        if (docProfile == null ||
+            docProfile.specialization.isEmpty ||
+            docProfile.name == 'Dr. Unknown') {
+          Navigator.pushReplacementNamed(context, '/doctor-onboarding');
+        } else {
+          Navigator.pushReplacementNamed(context, '/doctor-dashboard');
+        }
       } else {
-        Navigator.pushReplacementNamed(context, '/home');
+        final children = await _firebaseService.getChildProfiles();
+        if (!mounted) return;
+        if (children.isEmpty) {
+          Navigator.pushReplacementNamed(context, '/parent-onboarding');
+        } else {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
       }
     } on Exception catch (e) {
       if (!mounted) return;
@@ -60,16 +88,32 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
     try {
-      final user = await _firebaseService.signInWithGoogle();
+      final user = await _firebaseService.signInWithGoogle(
+        role: _isDoctor ? 'doctor' : 'parent',
+      );
       if (!mounted) return;
       if (user != null) {
         final profile = await _firebaseService.getUserProfile();
         if (!mounted) return;
 
         if (profile?.role == 'doctor') {
-          Navigator.pushReplacementNamed(context, '/doctor-dashboard');
+          final docProfile = await _firebaseService.getDoctorProfile();
+          if (!mounted) return;
+          if (docProfile == null ||
+              docProfile.specialization.isEmpty ||
+              docProfile.name == 'Dr. Unknown') {
+            Navigator.pushReplacementNamed(context, '/doctor-onboarding');
+          } else {
+            Navigator.pushReplacementNamed(context, '/doctor-dashboard');
+          }
         } else {
-          Navigator.pushReplacementNamed(context, '/home');
+          final children = await _firebaseService.getChildProfiles();
+          if (!mounted) return;
+          if (children.isEmpty) {
+            Navigator.pushReplacementNamed(context, '/parent-onboarding');
+          } else {
+            Navigator.pushReplacementNamed(context, '/home');
+          }
         }
       }
       // user == null means cancelled — do nothing
@@ -83,10 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.error,
-      ),
+      SnackBar(content: Text(message), backgroundColor: AppColors.error),
     );
   }
 
@@ -100,17 +141,18 @@ class _LoginScreenState extends State<LoginScreen> {
         width: double.infinity,
         height: double.infinity,
         decoration: BoxDecoration(
-          gradient: isDark
-              ? const LinearGradient(
-                  colors: [AppColors.darkBackground, Color(0xFF1A1D35)],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                )
-              : const LinearGradient(
-                  colors: [Color(0xFFEEF0FF), Color(0xFFF8F9FE)],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
+          gradient:
+              isDark
+                  ? const LinearGradient(
+                    colors: [AppColors.darkBackground, Color(0xFF1A1D35)],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  )
+                  : const LinearGradient(
+                    colors: [Color(0xFFEEF0FF), Color(0xFFF8F9FE)],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
         ),
         child: SafeArea(
           child: SingleChildScrollView(
@@ -122,7 +164,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 // ─── Logo & Title ─────────────────────────────
                 _buildHeader(context, isDark),
 
-                const SizedBox(height: 40),
+                const SizedBox(height: 32),
+
+                // ─── Role Toggle ──────────────────────────────
+                _buildRoleToggle(context, isDark),
+
+                const SizedBox(height: 24),
 
                 // ─── Login Card ───────────────────────────────
                 _buildLoginCard(context, isDark),
@@ -138,8 +185,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     GestureDetector(
-                      onTap: () =>
-                          Navigator.pushReplacementNamed(context, '/signup'),
+                      onTap:
+                          () => Navigator.pushReplacementNamed(
+                            context,
+                            '/signup',
+                          ),
                       child: const Text(
                         AppStrings.signUp,
                         style: TextStyle(
@@ -161,9 +211,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: isDark
-                        ? AppColors.darkSurfaceVariant.withValues(alpha: 0.5)
-                        : AppColors.warningLight.withValues(alpha: 0.5),
+                    color:
+                        isDark
+                            ? AppColors.darkSurfaceVariant.withValues(
+                              alpha: 0.5,
+                            )
+                            : AppColors.warningLight.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -178,10 +231,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       Expanded(
                         child: Text(
                           AppStrings.disclaimerShort,
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    fontSize: 11,
-                                  ),
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodySmall?.copyWith(fontSize: 11),
                         ),
                       ),
                     ],
@@ -202,29 +254,29 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         // Gradient app icon
         Container(
-          width: 88,
-          height: 88,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF5B6EF5), Color(0xFFA855F7)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF5B6EF5).withValues(alpha: 0.35),
-                blurRadius: 30,
-                offset: const Offset(0, 10),
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF5B6EF5), Color(0xFFA855F7)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF5B6EF5).withValues(alpha: 0.35),
+                    blurRadius: 30,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: const Icon(
-            Icons.favorite_rounded,
-            size: 44,
-            color: Colors.white,
-          ),
-        )
+              child: const Icon(
+                Icons.favorite_rounded,
+                size: 44,
+                color: Colors.white,
+              ),
+            )
             .animate()
             .fadeIn(duration: 600.ms)
             .scale(
@@ -239,9 +291,9 @@ class _LoginScreenState extends State<LoginScreen> {
         Text(
           AppStrings.appName,
           style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1,
-              ),
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1,
+          ),
         ).animate().fadeIn(delay: 200.ms, duration: 500.ms),
 
         const SizedBox(height: 6),
@@ -250,229 +302,329 @@ class _LoginScreenState extends State<LoginScreen> {
         Text(
           AppStrings.tagline,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: isDark
-                    ? AppColors.darkTextSecondary
-                    : AppColors.textSecondary,
-              ),
+            color:
+                isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+          ),
           textAlign: TextAlign.center,
         ).animate().fadeIn(delay: 300.ms, duration: 500.ms),
       ],
     );
   }
 
-  Widget _buildLoginCard(BuildContext context, bool isDark) {
+  Widget _buildRoleToggle(BuildContext context, bool isDark) {
     return Container(
-      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.darkSurface.withValues(alpha: 0.8)
-            : Colors.white.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: isDark
-              ? AppColors.darkBorder.withValues(alpha: 0.3)
-              : AppColors.divider.withValues(alpha: 0.5),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isDark
-                ? Colors.black.withValues(alpha: 0.2)
-                : const Color(0xFF5B6EF5).withValues(alpha: 0.06),
-            blurRadius: 30,
-            offset: const Offset(0, 10),
+        color: isDark ? AppColors.darkSurfaceVariant : AppColors.surfaceVariant,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _isDoctor = false),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: !_isDoctor ? AppColors.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow:
+                      !_isDoctor
+                          ? [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ]
+                          : [],
+                ),
+                child: Center(
+                  child: Text(
+                    'Parent',
+                    style: TextStyle(
+                      color:
+                          !_isDoctor
+                              ? Colors.white
+                              : (isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.textSecondary),
+                      fontWeight:
+                          !_isDoctor ? FontWeight.w600 : FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _isDoctor = true),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: _isDoctor ? AppColors.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow:
+                      _isDoctor
+                          ? [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ]
+                          : [],
+                ),
+                child: Center(
+                  child: Text(
+                    'Doctor',
+                    style: TextStyle(
+                      color:
+                          _isDoctor
+                              ? Colors.white
+                              : (isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.textSecondary),
+                      fontWeight: _isDoctor ? FontWeight.w600 : FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         ],
       ),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Welcome Back',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Sign in to continue your journey',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 28),
+    ).animate().fadeIn(delay: 400.ms, duration: 400.ms);
+  }
 
-            // Email field
-            CustomTextField(
-              label: AppStrings.email,
-              controller: _emailController,
-              keyboardType: TextInputType.emailAddress,
-              prefixIcon: Icons.email_outlined,
-              validator: Validators.email,
-              textInputAction: TextInputAction.next,
+  Widget _buildLoginCard(BuildContext context, bool isDark) {
+    return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color:
+                isDark
+                    ? AppColors.darkSurface.withValues(alpha: 0.8)
+                    : Colors.white.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color:
+                  isDark
+                      ? AppColors.darkBorder.withValues(alpha: 0.3)
+                      : AppColors.divider.withValues(alpha: 0.5),
             ),
-
-            const SizedBox(height: 4),
-
-            // Password field
-            CustomTextField(
-              label: AppStrings.password,
-              controller: _passwordController,
-              obscureText: _obscurePassword,
-              prefixIcon: Icons.lock_outlined,
-              validator: Validators.password,
-              textInputAction: TextInputAction.done,
-              onFieldSubmitted: (_) => _login(),
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscurePassword
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  size: 20,
-                ),
-                onPressed: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
+            boxShadow: [
+              BoxShadow(
+                color:
+                    isDark
+                        ? Colors.black.withValues(alpha: 0.2)
+                        : const Color(0xFF5B6EF5).withValues(alpha: 0.06),
+                blurRadius: 30,
+                offset: const Offset(0, 10),
               ),
-            ),
-
-            // Forgot password
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () =>
-                    Navigator.pushNamed(context, '/password-reset'),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                ),
-                child: const Text(
-                  AppStrings.forgotPassword,
-                  style: TextStyle(fontSize: 13),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            // Login button
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _login,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  elevation: 0,
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 22,
-                        width: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text(
-                        AppStrings.login,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // ─── Divider ─────────────────────────────
-            Row(
+            ],
+          ),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Divider(
-                    color: isDark ? AppColors.darkDivider : AppColors.divider,
-                  ),
+                Text(
+                  'Welcome Back',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    'or continue with',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: isDark
-                              ? AppColors.darkTextTertiary
-                              : AppColors.textTertiary,
+                const SizedBox(height: 4),
+                Text(
+                  'Sign in to continue your journey',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 28),
+
+                // Email field
+                CustomTextField(
+                  label: AppStrings.email,
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  prefixIcon: Icons.email_outlined,
+                  validator: Validators.email,
+                  textInputAction: TextInputAction.next,
+                ),
+
+                const SizedBox(height: 4),
+
+                // Password field
+                CustomTextField(
+                  label: AppStrings.password,
+                  controller: _passwordController,
+                  obscureText: _obscurePassword,
+                  prefixIcon: Icons.lock_outlined,
+                  validator: Validators.password,
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _login(),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      size: 20,
+                    ),
+                    onPressed:
+                        () => setState(
+                          () => _obscurePassword = !_obscurePassword,
                         ),
                   ),
                 ),
-                Expanded(
-                  child: Divider(
-                    color: isDark ? AppColors.darkDivider : AppColors.divider,
-                  ),
-                ),
-              ],
-            ),
 
-            const SizedBox(height: 16),
-
-            // ─── Social Auth Buttons ─────────────────
-            Row(
-              children: [
-                // Google button
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _isLoading ? null : _signInWithGoogle,
-                    icon: const Text('G',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF4285F4),
-                        )),
-                    label: const Text('Google'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      side: BorderSide(
-                        color: isDark
-                            ? AppColors.darkBorder
-                            : AppColors.divider,
-                      ),
+                // Forgot password
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed:
+                        () => Navigator.pushNamed(context, '/password-reset'),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                    ),
+                    child: const Text(
+                      AppStrings.forgotPassword,
+                      style: TextStyle(fontSize: 13),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
-                // Phone OTP button
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () =>
-                        Navigator.pushNamed(context, '/phone-otp'),
-                    icon: const Icon(Icons.phone_rounded, size: 20),
-                    label: const Text('Phone'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
+
+                const SizedBox(height: 8),
+
+                // Login button
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _login,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      side: BorderSide(
-                        color: isDark
-                            ? AppColors.darkBorder
-                            : AppColors.divider,
+                      elevation: 0,
+                    ),
+                    child:
+                        _isLoading
+                            ? const SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.white,
+                              ),
+                            )
+                            : const Text(
+                              AppStrings.login,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // ─── Divider ─────────────────────────────
+                Row(
+                  children: [
+                    Expanded(
+                      child: Divider(
+                        color:
+                            isDark ? AppColors.darkDivider : AppColors.divider,
                       ),
                     ),
-                  ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'or continue with',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color:
+                              isDark
+                                  ? AppColors.darkTextTertiary
+                                  : AppColors.textTertiary,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Divider(
+                        color:
+                            isDark ? AppColors.darkDivider : AppColors.divider,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                // ─── Social Auth Buttons ─────────────────
+                Row(
+                  children: [
+                    // Google button
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _isLoading ? null : _signInWithGoogle,
+                        icon: const Text(
+                          'G',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF4285F4),
+                          ),
+                        ),
+                        label: const Text('Google'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          side: BorderSide(
+                            color:
+                                isDark
+                                    ? AppColors.darkBorder
+                                    : AppColors.divider,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Phone OTP button
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed:
+                            () => Navigator.pushNamed(context, '/phone-otp'),
+                        icon: const Icon(Icons.phone_rounded, size: 20),
+                        label: const Text('Phone'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          side: BorderSide(
+                            color:
+                                isDark
+                                    ? AppColors.darkBorder
+                                    : AppColors.divider,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
-      ),
-    ).animate().fadeIn(delay: 500.ms, duration: 600.ms).slideY(
-          begin: 0.1,
-          duration: 600.ms,
-          curve: Curves.easeOutCubic,
-        );
+          ),
+        )
+        .animate()
+        .fadeIn(delay: 500.ms, duration: 600.ms)
+        .slideY(begin: 0.1, duration: 600.ms, curve: Curves.easeOutCubic);
   }
 }
