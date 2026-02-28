@@ -42,15 +42,25 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
   }
 
   Future<void> _initService() async {
-    final aiService = context.read<AiService>();
-    _voiceService = VoiceAssistantService(aiService);
-    
-    // We listen to service changes manually to trigger rebuilds
-    _voiceService.addListener(_onServiceChange);
+    try {
+      final aiService = context.read<AiService>();
+      _voiceService = VoiceAssistantService(aiService);
+      
+      // We listen to service changes manually to trigger rebuilds
+      _voiceService.addListener(_onServiceChange);
 
-    final success = await _voiceService.initialize();
-    if (success && mounted) {
-      await _voiceService.startSession(mode: VoiceMode.pushToTalk);
+      final success = await _voiceService.initialize();
+      if (success && mounted) {
+        await _voiceService.startSession(mode: VoiceMode.pushToTalk);
+      }
+    } catch (e) {
+      debugPrint('Error initializing voice service: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isInit = true;
+        });
+      }
     }
   }
 
@@ -69,15 +79,17 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (!_isInit || _voiceService.session == null) {
+    final status = _voiceService.session?.status ?? VoiceStatus.idle;
+    final mode = _voiceService.session?.mode ?? VoiceMode.pushToTalk;
+    final hasError = _voiceService.errorMessage != null;
+
+    if (!_isInit && !hasError) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final status = _voiceService.session!.status;
-    final mode = _voiceService.session!.mode;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,

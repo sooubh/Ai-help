@@ -106,6 +106,7 @@ VOICE MODE RULES (in addition to base rules):
     } catch (e) {
       debugPrint('VoiceAssistant init error: $e');
       _speechAvailable = false;
+      _setError('Failed to initialize voice assistant: $e');
       notifyListeners();
       return false;
     }
