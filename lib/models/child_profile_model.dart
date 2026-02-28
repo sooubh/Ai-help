@@ -19,6 +19,8 @@ class ChildProfileModel {
   final List<String> parentGoals;
   final String currentTherapyStatus;
   final String? medicalNotes;
+  final String? relationship; // e.g. Mother, Father
+  final String? photoUrl;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -36,10 +38,12 @@ class ChildProfileModel {
     required this.parentGoals,
     required this.currentTherapyStatus,
     this.medicalNotes,
+    this.relationship,
+    this.photoUrl,
     DateTime? createdAt,
     DateTime? updatedAt,
-  })  : createdAt = createdAt ?? DateTime.now(),
-        updatedAt = updatedAt ?? DateTime.now();
+  }) : createdAt = createdAt ?? DateTime.now(),
+       updatedAt = updatedAt ?? DateTime.now();
 
   /// Create from Firestore document snapshot.
   factory ChildProfileModel.fromMap(Map<String, dynamic> map, [String? id]) {
@@ -57,10 +61,10 @@ class ChildProfileModel {
       parentGoals: List<String>.from(map['parentGoals'] ?? []),
       currentTherapyStatus: map['currentTherapyStatus'] ?? 'None',
       medicalNotes: map['medicalNotes'],
-      createdAt:
-          (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt:
-          (map['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      relationship: map['relationship'],
+      photoUrl: map['photoUrl'],
+      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      updatedAt: (map['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
@@ -80,6 +84,8 @@ class ChildProfileModel {
       'parentGoals': parentGoals,
       'currentTherapyStatus': currentTherapyStatus,
       'medicalNotes': medicalNotes,
+      'relationship': relationship,
+      'photoUrl': photoUrl,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
@@ -100,6 +106,8 @@ class ChildProfileModel {
     List<String>? parentGoals,
     String? currentTherapyStatus,
     String? medicalNotes,
+    String? relationship,
+    String? photoUrl,
   }) {
     return ChildProfileModel(
       id: id ?? this.id,
@@ -113,9 +121,10 @@ class ChildProfileModel {
       motorSkillLevel: motorSkillLevel ?? this.motorSkillLevel,
       learningAbilities: learningAbilities ?? this.learningAbilities,
       parentGoals: parentGoals ?? this.parentGoals,
-      currentTherapyStatus:
-          currentTherapyStatus ?? this.currentTherapyStatus,
+      currentTherapyStatus: currentTherapyStatus ?? this.currentTherapyStatus,
       medicalNotes: medicalNotes ?? this.medicalNotes,
+      relationship: relationship ?? this.relationship,
+      photoUrl: photoUrl ?? this.photoUrl,
       createdAt: createdAt,
       updatedAt: DateTime.now(),
     );
