@@ -874,6 +874,33 @@ class FirebaseService {
 
   // ─── Doctor Portal Queries ────────────────────────────────
 
+  /// Fetch pending patient connection requests.
+  Future<List<Map<String, dynamic>>> getDoctorRequests() async {
+    final uid = currentUser?.uid;
+    if (uid == null) return [];
+
+    final snapshot = await _firestore
+        .collection('doctor_requests')
+        .where('doctorId', isEqualTo: uid)
+        .where('status', isEqualTo: 'pending')
+        .get();
+
+    return snapshot.docs.map((doc) {
+      final data = doc.data();
+      data['requestId'] = doc.id;
+      return data;
+    }).toList();
+  }
+
+  /// Respond to a patient connection request.
+  Future<void> respondToDoctorRequest(String requestId, bool approve) async {
+    final status = approve ? 'approved' : 'declined';
+    await _firestore
+        .collection('doctor_requests')
+        .doc(requestId)
+        .update({'status': status});
+  }
+
   /// Fetch the current user's profile as a DoctorModel.
   Future<DoctorModel?> getDoctorProfile() async {
     final uid = currentUser?.uid;

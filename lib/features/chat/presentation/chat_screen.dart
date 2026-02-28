@@ -124,36 +124,46 @@ class _ChatScreenState extends State<ChatScreen> {
       timestamp: DateTime.now(),
     ));
 
-    // Get AI response
+    // Get AI response stream
     try {
-      final response = await aiService.getResponse(text);
-
-      if (!mounted) return;
-
+      int aiMsgIndex = _messages.length;
       setState(() {
-        _messages.add(_ChatMsg(text: response, isUser: false));
-        _isTyping = false;
+        _messages.add(const _ChatMsg(text: '', isUser: false));
       });
+
+      final stream = aiService.getStreamingResponse(text);
+      String fullResponse = '';
+
+      await for (final chunk in stream) {
+        if (!mounted) return;
+        fullResponse += chunk;
+
+        setState(() {
+          _messages[aiMsgIndex] = _ChatMsg(text: fullResponse, isUser: false);
+          _isTyping = false; // Turn off typing indicator once data arrives
+        });
+        _scrollToBottom();
+      }
 
       // Save AI response to Firestore
       await _firebaseService.sendChatMessage(ChatMessageModel(
         id: '',
-        message: response,
+        message: fullResponse,
         sender: 'ai',
         timestamp: DateTime.now(),
       ));
 
       // Speak response if TTS is enabled
       if (_ttsEnabled) {
-        _ttsService.speak(response);
+        _ttsService.speak(fullResponse);
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _messages.add(_ChatMsg(
+        _messages.last = const _ChatMsg(
           text: 'Sorry, I encountered an error. Please try again.',
           isUser: false,
-        ));
+        );
         _isTyping = false;
       });
     }

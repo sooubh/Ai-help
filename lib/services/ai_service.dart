@@ -15,7 +15,7 @@ class AiService {
   GenerativeModel? _model;
   ChatSession? _chatSession;
 
-  static const String _modelName = 'gemini-2.0-flash';
+  static const String _modelName = 'gemini-2.5-flash';
 
   /// System instruction that frames CARE-AI's behavior.
   static const String _baseSystemPrompt = '''
@@ -38,12 +38,17 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
 
   /// Initialize the Gemini model. Call once at app start.
   void initialize() {
+    print('Initializing AiService...');
+    print('EnvConfig.hasGeminiKey: \${EnvConfig.hasGeminiKey}');
+    print('EnvConfig.geminiApiKey length: \${EnvConfig.geminiApiKey.length}');
+
     if (!EnvConfig.hasGeminiKey) {
       // ignore: avoid_print
       print('⚠️ Gemini API key not configured. AI features will use fallback.');
       return;
     }
 
+    print('Gemini API Key found. Initializing GenerativeModel...');
     _model = GenerativeModel(
       model: _modelName,
       apiKey: EnvConfig.geminiApiKey,
@@ -62,6 +67,7 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
         SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.medium),
       ],
     );
+    print('GenerativeModel initialized successfully.');
   }
 
   /// Start a new chat session with child profile context.
@@ -80,7 +86,15 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
   /// Send a message and get a response.
   /// Returns the AI response text, or a fallback if API is unavailable.
   Future<String> getResponse(String userMessage) async {
-    if (_chatSession == null || _model == null) {
+    if (_model == null) {
+      return _getFallbackResponse(userMessage);
+    }
+    
+    if (_chatSession == null) {
+      startChatSession();
+    }
+    
+    if (_chatSession == null) {
       return _getFallbackResponse(userMessage);
     }
 
@@ -96,7 +110,7 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
       return text;
     } catch (e) {
       // ignore: avoid_print
-      print('Gemini API error: \$e');
+      print('Gemini API error: $e');
       return _getFallbackResponse(userMessage);
     }
   }
@@ -167,7 +181,7 @@ Each object must have exactly these keys:
       return parsed.map((e) => RecommendationModel.fromMap(e as Map<String, dynamic>)).toList();
     } catch (e) {
       // ignore: avoid_print
-      print('Failed to parse AI recommendations: \$e');
+      print('Failed to parse AI recommendations: $e');
       return _getDefaultRecommendations(profile);
     }
   }
