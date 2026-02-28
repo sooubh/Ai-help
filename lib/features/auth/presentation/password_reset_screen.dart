@@ -60,7 +60,8 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: _emailSent ? _buildSuccessView(isDark) : _buildFormView(isDark),
+          child:
+              _emailSent ? _buildSuccessView(isDark) : _buildFormView(isDark),
         ),
       ),
     );
@@ -74,18 +75,21 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
 
         // Icon
         Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            color: AppColors.primarySurface,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: const Icon(
-            Icons.lock_reset_rounded,
-            color: AppColors.primary,
-            size: 36,
-          ),
-        ).animate().fadeIn(duration: 400.ms).scale(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: AppColors.primarySurface,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Icon(
+                Icons.lock_reset_rounded,
+                color: AppColors.primary,
+                size: 36,
+              ),
+            )
+            .animate()
+            .fadeIn(duration: 400.ms)
+            .scale(
               begin: const Offset(0.8, 0.8),
               duration: 400.ms,
               curve: Curves.easeOutBack,
@@ -95,9 +99,9 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
 
         Text(
           AppStrings.resetPassword,
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
         ).animate().fadeIn(delay: 100.ms, duration: 400.ms),
 
         const SizedBox(height: 8),
@@ -105,11 +109,10 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
         Text(
           'Enter your email address and we\'ll send you a link to reset your password.',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: isDark
-                    ? AppColors.darkTextSecondary
-                    : AppColors.textSecondary,
-                height: 1.5,
-              ),
+            color:
+                isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+            height: 1.5,
+          ),
         ).animate().fadeIn(delay: 200.ms, duration: 400.ms),
 
         const SizedBox(height: 32),
@@ -127,8 +130,9 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                   if (v == null || v.trim().isEmpty) {
                     return 'Please enter your email';
                   }
-                  if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$')
-                      .hasMatch(v.trim())) {
+                  if (!RegExp(
+                    r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$',
+                  ).hasMatch(v.trim())) {
                     return 'Please enter a valid email';
                   }
                   return null;
@@ -146,22 +150,23 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                 height: 56,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _sendResetEmail,
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white,
+                  child:
+                      _isLoading
+                          ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
+                          : const Text(
+                            'Send Reset Link',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        )
-                      : const Text(
-                          'Send Reset Link',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
                 ),
               ),
             ],
@@ -177,18 +182,21 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
         const SizedBox(height: 60),
 
         Container(
-          width: 100,
-          height: 100,
-          decoration: BoxDecoration(
-            color: AppColors.successLight,
-            borderRadius: BorderRadius.circular(28),
-          ),
-          child: const Icon(
-            Icons.mark_email_read_rounded,
-            color: AppColors.success,
-            size: 52,
-          ),
-        ).animate().fadeIn(duration: 500.ms).scale(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: AppColors.successLight,
+                borderRadius: BorderRadius.circular(28),
+              ),
+              child: const Icon(
+                Icons.mark_email_read_rounded,
+                color: AppColors.success,
+                size: 52,
+              ),
+            )
+            .animate()
+            .fadeIn(duration: 500.ms)
+            .scale(
               begin: const Offset(0.5, 0.5),
               duration: 500.ms,
               curve: Curves.easeOutBack,
@@ -198,9 +206,9 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
 
         Text(
           'Check Your Email',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
         ).animate().fadeIn(delay: 200.ms, duration: 400.ms),
 
@@ -209,11 +217,10 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
         Text(
           'We\'ve sent a password reset link to\n${_emailController.text.trim()}',
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: isDark
-                    ? AppColors.darkTextSecondary
-                    : AppColors.textSecondary,
-                height: 1.5,
-              ),
+            color:
+                isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+            height: 1.5,
+          ),
           textAlign: TextAlign.center,
         ).animate().fadeIn(delay: 300.ms, duration: 400.ms),
 

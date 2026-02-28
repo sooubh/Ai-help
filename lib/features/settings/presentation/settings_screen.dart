@@ -20,6 +20,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _notificationService = NotificationService();
   bool _notificationsEnabled = true;
+  TimeOfDay _reminderTime = const TimeOfDay(hour: 9, minute: 0);
   bool _isExporting = false;
 
   @override
@@ -30,7 +31,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadNotificationPref() async {
     final enabled = await _notificationService.isEnabled();
-    if (mounted) setState(() => _notificationsEnabled = enabled);
+    final time = await _notificationService.getReminderTime();
+    if (mounted) {
+      setState(() {
+        _notificationsEnabled = enabled;
+        _reminderTime = time;
+      });
+    }
   }
 
   Future<void> _toggleNotifications(bool value) async {
@@ -39,12 +46,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(value
-            ? 'Notifications enabled'
-            : 'Notifications disabled'),
+        content: Text(
+          value
+              ? 'Notifications scheduled for ${_reminderTime.format(context)}'
+              : 'Notifications disabled',
+        ),
         duration: const Duration(seconds: 2),
       ),
     );
+  }
+
+  Future<void> _selectReminderTime() async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: _reminderTime,
+    );
+    if (picked != null && picked != _reminderTime) {
+      setState(() => _reminderTime = picked);
+      await _notificationService.scheduleDailyReminder(
+        hour: picked.hour,
+        minute: picked.minute,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Reminder set for ${picked.format(context)}'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Future<void> _exportData() async {
@@ -97,60 +127,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ─── Profile Card ──────────────────────────
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? AppColors.darkCardBackground
-                    : AppColors.cardBackground,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: isDark
-                    ? []
-                    : [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.06),
-                          blurRadius: 20,
-                          offset: const Offset(0, 6),
+            GestureDetector(
+              onTap: () => Navigator.pushNamed(context, '/full-profile'),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color:
+                      isDark
+                          ? AppColors.darkCardBackground
+                          : AppColors.cardBackground,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow:
+                      isDark
+                          ? []
+                          : [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.06),
+                              blurRadius: 20,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundColor: AppColors.primarySurface,
+                      child: Text(
+                        (user?.displayName?.isNotEmpty == true)
+                            ? user!.displayName![0].toUpperCase()
+                            : (user?.email?[0].toUpperCase() ?? 'U'),
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primary,
                         ),
-                      ],
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: AppColors.primarySurface,
-                    child: Text(
-                      (user?.displayName?.isNotEmpty == true)
-                          ? user!.displayName![0].toUpperCase()
-                          : (user?.email?[0].toUpperCase() ?? 'U'),
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          user?.displayName ?? 'Parent',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        Text(
-                          user?.email ?? '',
-                          style: Theme.of(context).textTheme.bodySmall,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user?.displayName ?? 'Parent',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          Text(
+                            user?.email ?? '',
+                            style: Theme.of(context).textTheme.bodySmall,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.primary,
+                      size: 28,
+                    ),
+                  ],
+                ),
               ),
             ).animate().fadeIn(duration: 400.ms),
 
@@ -178,8 +216,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               icon: Icons.child_care_rounded,
               title: 'Edit Child Profile',
               subtitle: 'Update your child\'s information',
-              onTap: () =>
-                  Navigator.pushNamed(context, '/profile-setup'),
+              onTap: () => Navigator.pushNamed(context, '/profile-setup'),
             ),
 
             const SizedBox(height: 20),
@@ -197,6 +234,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 activeTrackColor: AppColors.primary,
               ),
             ),
+            if (_notificationsEnabled)
+              _SettingsTile(
+                icon: Icons.access_time_rounded,
+                title: 'Reminder Time',
+                subtitle: 'Choose when to receive daily check-ins',
+                trailing: Text(
+                  _reminderTime.format(context),
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                onTap: _selectReminderTime,
+              ),
 
             const SizedBox(height: 20),
 
@@ -212,13 +263,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               icon: Icons.download_rounded,
               title: 'Export My Data',
               subtitle: 'Download a copy of your data to clipboard',
-              trailing: _isExporting
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : null,
+              trailing:
+                  _isExporting
+                      ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                      : null,
               onTap: _isExporting ? null : _exportData,
             ),
             _SettingsTile(
@@ -252,21 +304,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () async {
                 final confirm = await showDialog<bool>(
                   context: context,
-                  builder: (_) => AlertDialog(
-                    title: const Text('Sign Out'),
-                    content:
-                        const Text('Are you sure you want to sign out?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancel'),
+                  builder:
+                      (_) => AlertDialog(
+                        title: const Text('Sign Out'),
+                        content: const Text(
+                          'Are you sure you want to sign out?',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Sign Out'),
+                          ),
+                        ],
                       ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        child: const Text('Sign Out'),
-                      ),
-                    ],
-                  ),
                 );
                 if (confirm != true || !context.mounted) return;
                 await FirebaseService().signOut();
@@ -282,24 +336,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () async {
                 final confirm = await showDialog<bool>(
                   context: context,
-                  builder: (_) => AlertDialog(
-                    title: const Text('Delete Account'),
-                    content: const Text(
-                      'This will permanently delete your account and all associated data. This action cannot be undone.',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('Cancel'),
+                  builder:
+                      (_) => AlertDialog(
+                        title: const Text('Delete Account'),
+                        content: const Text(
+                          'This will permanently delete your account and all associated data. This action cannot be undone.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.error,
+                            ),
+                            child: const Text('Delete'),
+                          ),
+                        ],
                       ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        style: TextButton.styleFrom(
-                            foregroundColor: AppColors.error),
-                        child: const Text('Delete'),
-                      ),
-                    ],
-                  ),
                 );
                 if (confirm != true || !context.mounted) return;
                 try {
@@ -327,16 +383,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Text(
                     AppStrings.appName,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Version 1.0.0',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textTertiary,
-                          fontSize: 11,
-                        ),
+                      color: AppColors.textTertiary,
+                      fontSize: 11,
+                    ),
                   ),
                 ],
               ),
@@ -351,9 +407,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Text(
       title,
       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: AppColors.primary,
-          ),
+        fontWeight: FontWeight.w700,
+        color: AppColors.primary,
+      ),
     );
   }
 }
@@ -394,27 +450,30 @@ class _SettingsTile extends StatelessWidget {
       ),
       title: Text(
         title,
-        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              fontWeight: FontWeight.w500,
-            ),
+        style: Theme.of(
+          context,
+        ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
       ),
-      subtitle: subtitle != null
-          ? Text(
-              subtitle!,
-              style: Theme.of(context).textTheme.bodySmall,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            )
-          : null,
-      trailing: trailing ??
+      subtitle:
+          subtitle != null
+              ? Text(
+                subtitle!,
+                style: Theme.of(context).textTheme.bodySmall,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              )
+              : null,
+      trailing:
+          trailing ??
           (onTap != null
               ? Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  size: 14,
-                  color: isDark
-                      ? AppColors.darkTextTertiary
-                      : AppColors.textTertiary,
-                )
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color:
+                    isDark
+                        ? AppColors.darkTextTertiary
+                        : AppColors.textTertiary,
+              )
               : null),
     );
   }

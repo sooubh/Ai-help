@@ -17,7 +17,10 @@ import 'features/auth/presentation/signup_screen.dart';
 import 'features/auth/presentation/password_reset_screen.dart';
 import 'features/auth/presentation/phone_otp_screen.dart';
 import 'features/onboarding/presentation/onboarding_screen.dart';
+import 'features/onboarding/presentation/parent_onboarding_screen.dart';
+import 'features/onboarding/presentation/doctor_onboarding_screen.dart';
 import 'features/profile/presentation/profile_setup_screen.dart';
+import 'features/profile/presentation/full_profile_screen.dart';
 import 'features/home/presentation/home_screen.dart';
 import 'features/chat/presentation/chat_screen.dart';
 import 'features/activities/presentation/modules_library_screen.dart';
@@ -37,6 +40,7 @@ import 'features/doctor/presentation/patient_detail_screen.dart';
 import 'features/doctor/presentation/assign_plan_screen.dart';
 import 'features/doctor/presentation/compose_guidance_note_screen.dart';
 import 'services/notification_service.dart';
+import 'services/firebase_service.dart';
 
 /// Entry point for CARE-AI.
 /// Initializes Firebase, validates environment, sets up providers,
@@ -52,9 +56,7 @@ void main() async {
   }
 
   // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Enable offline persistence with unlimited cache
   FirebaseFirestore.instance.settings = const Settings(
@@ -96,14 +98,46 @@ void main() async {
   );
 }
 
-class CareAiApp extends StatelessWidget {
+class CareAiApp extends StatefulWidget {
   const CareAiApp({super.key});
+
+  @override
+  State<CareAiApp> createState() => _CareAiAppState();
+}
+
+class _CareAiAppState extends State<CareAiApp> with WidgetsBindingObserver {
+  late final NotificationService _notificationService;
+
+  @override
+  void initState() {
+    super.initState();
+    _notificationService = NotificationService();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      // App is in background — schedule inactivity reminders
+      _notificationService.scheduleInactivityReminders();
+    } else if (state == AppLifecycleState.resumed) {
+      // App is in foreground — cancel reminders as user is active
+      _notificationService.cancelInactivityReminders();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
 
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'CARE-AI',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
@@ -114,17 +148,26 @@ class CareAiApp extends StatelessWidget {
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
-          // Still loading auth state
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const _SplashScreen();
           }
 
-          // User is signed in → go to home
           if (snapshot.hasData && snapshot.data != null) {
-            return const HomeScreen();
+            // User is signed in — Check profile completion
+            return FutureBuilder<bool>(
+              future: _checkProfileCompletion(),
+              builder: (context, profileSnapshot) {
+                if (profileSnapshot.connectionState ==
+                    ConnectionState.waiting) {
+                  return const _SplashScreen();
+                }
+
+                return const _SplashScreen();
+              },
+            );
           }
 
-          // Not signed in → show onboarding/login
+          // Not signed in → show onboarding
           return const OnboardingScreen();
         },
       ),
@@ -136,6 +179,9 @@ class CareAiApp extends StatelessWidget {
         '/signup': (context) => const SignupScreen(),
         '/password-reset': (context) => const PasswordResetScreen(),
         '/phone-otp': (context) => const PhoneOtpScreen(),
+        '/parent-onboarding': (context) => const ParentOnboardingScreen(),
+        '/doctor-onboarding': (context) => const DoctorOnboardingScreen(),
+        '/full-profile': (context) => const FullProfileScreen(),
         '/profile-setup': (context) => const ProfileSetupScreen(),
         '/home': (context) => const HomeScreen(),
         '/chat': (context) => const ChatScreen(),
@@ -153,24 +199,74 @@ class CareAiApp extends StatelessWidget {
         '/voice-assistant': (context) => const VoiceAssistantScreen(),
         '/doctor-dashboard': (context) => const DoctorDashboardScreen(),
         '/patient-detail': (context) {
-          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          final args =
+              ModalRoute.of(context)?.settings.arguments
+                  as Map<String, dynamic>?;
           return PatientDetailScreen(
             childId: args?['childId'] ?? '',
             childName: args?['childName'] ?? 'Unknown Patient',
+            parentUid: args?['parentUid'] ?? '',
           );
         },
         '/assign-plan': (context) {
-          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-          return AssignPlanScreen(childId: args?['childId'] ?? '');
+          final args =
+              ModalRoute.of(context)?.settings.arguments
+                  as Map<String, dynamic>?;
+          return AssignPlanScreen(
+            childId: args?['childId'] ?? '',
+            parentUid: args?['parentUid'] ?? '',
+          );
         },
         '/compose-note': (context) {
-          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          final args =
+              ModalRoute.of(context)?.settings.arguments
+                  as Map<String, dynamic>?;
           return ComposeGuidanceNoteScreen(childId: args?['childId'] ?? '');
         },
       },
     );
   }
+
+  /// Checks if the user has completed their profile setup and navigates accordingly.
+  Future<bool> _checkProfileCompletion() async {
+    final nav = navigatorKey.currentState;
+    if (nav == null) return false;
+
+    final service = FirebaseService();
+    final profile = await service.getUserProfile();
+
+    if (profile == null) {
+      await service.signOut();
+      return false;
+    }
+
+    if (profile.role == 'doctor') {
+      final docProfile = await service.getDoctorProfile();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (docProfile == null ||
+            docProfile.specialization.isEmpty ||
+            docProfile.name == 'Dr. Unknown') {
+          nav.pushReplacementNamed('/doctor-onboarding');
+        } else {
+          nav.pushReplacementNamed('/doctor-dashboard');
+        }
+      });
+    } else {
+      final children = await service.getChildProfiles();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (children.isEmpty) {
+          nav.pushReplacementNamed('/parent-onboarding');
+        } else {
+          nav.pushReplacementNamed('/home');
+        }
+      });
+    }
+    return true;
+  }
 }
+
+/// Global navigator key to be used within the build context safely
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 /// Animated splash screen shown while Firebase initializes.
 class _SplashScreen extends StatelessWidget {
@@ -195,30 +291,30 @@ class _SplashScreen extends StatelessWidget {
             children: [
               // Pulsing logo
               Container(
-                width: 110,
-                height: 110,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF5B6EF5), Color(0xFFA855F7)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF5B6EF5).withValues(alpha: 0.5),
-                      blurRadius: 40,
-                      spreadRadius: 5,
-                      offset: const Offset(0, 10),
+                    width: 110,
+                    height: 110,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF5B6EF5), Color(0xFFA855F7)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF5B6EF5).withValues(alpha: 0.5),
+                          blurRadius: 40,
+                          spreadRadius: 5,
+                          offset: const Offset(0, 10),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.favorite_rounded,
-                  size: 56,
-                  color: Colors.white,
-                ),
-              )
+                    child: const Icon(
+                      Icons.favorite_rounded,
+                      size: 56,
+                      color: Colors.white,
+                    ),
+                  )
                   .animate(onPlay: (c) => c.repeat(reverse: true))
                   .scale(
                     begin: const Offset(1, 1),
@@ -234,14 +330,14 @@ class _SplashScreen extends StatelessWidget {
 
               // App name with shimmer
               const Text(
-                'CARE-AI',
-                style: TextStyle(
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  letterSpacing: 3,
-                ),
-              )
+                    'CARE-AI',
+                    style: TextStyle(
+                      fontSize: 36,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 3,
+                    ),
+                  )
                   .animate()
                   .fadeIn(delay: 300.ms, duration: 500.ms)
                   .slideY(begin: 0.3, duration: 500.ms),

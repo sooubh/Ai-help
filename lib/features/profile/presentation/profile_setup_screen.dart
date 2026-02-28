@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/utils/validators.dart';
@@ -36,6 +38,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final List<String> _selectedSensory = [];
   final List<String> _selectedGoals = [];
 
+  File? _imageFile;
   bool _isLoading = false;
 
   @override
@@ -43,6 +46,32 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     _nameController.dispose();
     _ageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      final file = File(pickedFile.path);
+      final fileSize = await file.length();
+
+      // Check 5MB limit
+      if (fileSize > 5 * 1024 * 1024) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please select an image smaller than 5MB.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+
+      setState(() {
+        _imageFile = file;
+      });
+    }
   }
 
   Future<void> _saveProfile() async {
@@ -58,6 +87,20 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
     setState(() => _isLoading = true);
     try {
+      final uid = _firebaseService.currentUser?.uid;
+      if (uid == null) throw Exception('User not logged in');
+
+      String? photoUrl;
+      // Only upload if an image was selected
+      if (_imageFile != null) {
+        // use a random id or naming convention for the child's image
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        photoUrl = await _firebaseService.uploadFile(
+          _imageFile!,
+          'users/$uid/children/$timestamp.jpg',
+        );
+      }
+
       final profile = ChildProfileModel(
         name: _nameController.text.trim(),
         age: int.parse(_ageController.text.trim()),
@@ -69,7 +112,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         motorSkillLevel: _selectedMotorSkillLevel ?? 'Unknown',
         learningAbilities: [],
         parentGoals: _selectedGoals,
-        currentTherapyStatus: _selectedTherapyStatus ?? 'Not currently in therapy',
+        currentTherapyStatus:
+            _selectedTherapyStatus ?? 'Not currently in therapy',
+        photoUrl: photoUrl,
       );
 
       await _firebaseService.saveChildProfile(profile);
@@ -118,15 +163,85 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 // Header
                 Text(
                   'Tell us about your child',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ).animate().fadeIn(duration: 400.ms),
                 const SizedBox(height: 4),
                 Text(
                   'This helps us personalize guidance and activities.',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ).animate().fadeIn(delay: 100.ms, duration: 400.ms),
+
+                const SizedBox(height: 24),
+
+                // ── Profile Photo ─────────────────────────────
+                Center(
+                  child: Column(
+                    children: [
+                      GestureDetector(
+                        onTap: _pickImage,
+                        child: Container(
+                          width: 100,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            color:
+                                isDark
+                                    ? AppColors.darkSurfaceVariant
+                                    : AppColors.surfaceVariant,
+                            shape: BoxShape.circle,
+                            image:
+                                _imageFile != null
+                                    ? DecorationImage(
+                                      image: FileImage(_imageFile!),
+                                      fit: BoxFit.cover,
+                                    )
+                                    : null,
+                            border: Border.all(
+                              color: AppColors.primary.withValues(alpha: 0.3),
+                              width: 2,
+                            ),
+                          ),
+                          child:
+                              _imageFile == null
+                                  ? Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.add_a_photo_rounded,
+                                        size: 28,
+                                        color: AppColors.primary.withValues(
+                                          alpha: 0.7,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Photo',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.primary.withValues(
+                                            alpha: 0.7,
+                                          ),
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                  : null,
+                        ),
+                      ).animate().scale(
+                        delay: 200.ms,
+                        duration: 400.ms,
+                        curve: Curves.easeOutBack,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Max size: 5MB',
+                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
 
                 const SizedBox(height: 24),
 
@@ -183,7 +298,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   value: _selectedCommunicationLevel,
                   items: AppStrings.communicationLevels,
                   icon: Icons.record_voice_over_outlined,
-                  onChanged: (v) => setState(() => _selectedCommunicationLevel = v),
+                  onChanged:
+                      (v) => setState(() => _selectedCommunicationLevel = v),
                   isRequired: true,
                 ),
 
@@ -221,7 +337,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   value: _selectedMotorSkillLevel,
                   items: AppStrings.motorSkillLevels,
                   icon: Icons.accessibility_new_outlined,
-                  onChanged: (v) => setState(() => _selectedMotorSkillLevel = v),
+                  onChanged:
+                      (v) => setState(() => _selectedMotorSkillLevel = v),
                 ),
 
                 const SizedBox(height: 20),
@@ -239,7 +356,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 const SizedBox(height: 20),
 
                 // ── Therapy Status ────────────────────────────
-                _sectionTitle('Current Therapy', Icons.health_and_safety_rounded),
+                _sectionTitle(
+                  'Current Therapy',
+                  Icons.health_and_safety_rounded,
+                ),
                 const SizedBox(height: 12),
                 _buildDropdown(
                   label: AppStrings.currentTherapy,
@@ -257,16 +377,17 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   height: 56,
                   child: ElevatedButton.icon(
                     onPressed: _isLoading ? null : _saveProfile,
-                    icon: _isLoading
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.check_circle_rounded),
+                    icon:
+                        _isLoading
+                            ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.white,
+                              ),
+                            )
+                            : const Icon(Icons.check_circle_rounded),
                     label: Text(
                       _isLoading ? 'Saving...' : AppStrings.saveProfile,
                       style: const TextStyle(
@@ -304,9 +425,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         Text(
           title,
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: AppColors.primary,
-              ),
+            fontWeight: FontWeight.w700,
+            color: AppColors.primary,
+          ),
         ),
       ],
     );
@@ -324,17 +445,16 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       padding: const EdgeInsets.only(bottom: 12),
       child: DropdownButtonFormField<String>(
         initialValue: value,
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon),
-        ),
-        items: items
-            .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-            .toList(),
+        decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
+        items:
+            items
+                .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+                .toList(),
         onChanged: onChanged,
-        validator: isRequired
-            ? (v) => v == null ? 'Please select $label' : null
-            : null,
+        validator:
+            isRequired
+                ? (v) => v == null ? 'Please select $label' : null
+                : null,
       ),
     );
   }
@@ -348,74 +468,75 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: options.map((option) {
-            final isSelected = selected.contains(option);
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  if (isSelected) {
-                    selected.remove(option);
-                  } else {
-                    selected.add(option);
-                  }
-                });
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? AppColors.primary.withValues(alpha: 0.12)
-                      : (isDark
-                          ? AppColors.darkSurfaceVariant
-                          : AppColors.surfaceVariant),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: isSelected
-                        ? AppColors.primary
-                        : Colors.transparent,
-                    width: 1.5,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (isSelected)
-                      const Padding(
-                        padding: EdgeInsets.only(right: 6),
-                        child: Icon(
-                          Icons.check_circle_rounded,
-                          size: 16,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    Text(
-                      option,
-                      style: TextStyle(
-                        color: isSelected
-                            ? AppColors.primary
-                            : (isDark
-                                ? AppColors.darkTextSecondary
-                                : AppColors.textSecondary),
-                        fontSize: 13,
-                        fontWeight:
-                            isSelected ? FontWeight.w600 : FontWeight.w400,
+          children:
+              options.map((option) {
+                final isSelected = selected.contains(option);
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      if (isSelected) {
+                        selected.remove(option);
+                      } else {
+                        selected.add(option);
+                      }
+                    });
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color:
+                          isSelected
+                              ? AppColors.primary.withValues(alpha: 0.12)
+                              : (isDark
+                                  ? AppColors.darkSurfaceVariant
+                                  : AppColors.surfaceVariant),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color:
+                            isSelected ? AppColors.primary : Colors.transparent,
+                        width: 1.5,
                       ),
                     ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isSelected)
+                          const Padding(
+                            padding: EdgeInsets.only(right: 6),
+                            child: Icon(
+                              Icons.check_circle_rounded,
+                              size: 16,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        Text(
+                          option,
+                          style: TextStyle(
+                            color:
+                                isSelected
+                                    ? AppColors.primary
+                                    : (isDark
+                                        ? AppColors.darkTextSecondary
+                                        : AppColors.textSecondary),
+                            fontSize: 13,
+                            fontWeight:
+                                isSelected ? FontWeight.w600 : FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
         ),
       ],
     );
