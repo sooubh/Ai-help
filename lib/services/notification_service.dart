@@ -182,7 +182,7 @@ class NotificationService {
       body: "It's time to review today's progress and activities.", // body
       scheduledDate: scheduledDate, // scheduledDate
       notificationDetails: details, // notificationDetails
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.time,
     );
   }

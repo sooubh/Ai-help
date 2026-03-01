@@ -3,6 +3,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import '../core/config/env_config.dart';
 import '../models/child_profile_model.dart';
 import '../models/recommendation_model.dart';
+import 'package:flutter/foundation.dart';
 
 /// AI service powered by Google Gemini.
 ///
@@ -38,17 +39,20 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
 
   /// Initialize the Gemini model. Call once at app start.
   void initialize() {
-    print('Initializing AiService...');
-    print('EnvConfig.hasGeminiKey: \${EnvConfig.hasGeminiKey}');
-    print('EnvConfig.geminiApiKey length: \${EnvConfig.geminiApiKey.length}');
+    debugPrint('Initializing AiService...');
+    debugPrint('EnvConfig.hasGeminiKey: ${EnvConfig.hasGeminiKey}');
+    debugPrint(
+      'EnvConfig.geminiApiKey length: ${EnvConfig.geminiApiKey.length}',
+    );
 
     if (!EnvConfig.hasGeminiKey) {
-      // ignore: avoid_print
-      print('⚠️ Gemini API key not configured. AI features will use fallback.');
+      debugPrint(
+        '⚠️ Gemini API key not configured. AI features will use fallback.',
+      );
       return;
     }
 
-    print('Gemini API Key found. Initializing GenerativeModel...');
+    debugPrint('Gemini API Key found. Initializing GenerativeModel...');
     _model = GenerativeModel(
       model: _modelName,
       apiKey: EnvConfig.geminiApiKey,
@@ -62,12 +66,11 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
       safetySettings: [
         SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium),
         SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.medium),
-        SafetySetting(
-            HarmCategory.sexuallyExplicit, HarmBlockThreshold.high),
+        SafetySetting(HarmCategory.sexuallyExplicit, HarmBlockThreshold.high),
         SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.medium),
       ],
     );
-    print('GenerativeModel initialized successfully.');
+    debugPrint('GenerativeModel initialized successfully.');
   }
 
   /// Start a new chat session with child profile context.
@@ -77,9 +80,7 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
     final contextPrompt = _buildChildContext(childProfile);
 
     _chatSession = _model!.startChat(
-      history: [
-        if (contextPrompt.isNotEmpty) Content.text(contextPrompt),
-      ],
+      history: [if (contextPrompt.isNotEmpty) Content.text(contextPrompt)],
     );
   }
 
@@ -89,11 +90,11 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
     if (_model == null) {
       return _getFallbackResponse(userMessage);
     }
-    
+
     if (_chatSession == null) {
       startChatSession();
     }
-    
+
     if (_chatSession == null) {
       return _getFallbackResponse(userMessage);
     }
@@ -109,8 +110,7 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
       }
       return text;
     } catch (e) {
-      // ignore: avoid_print
-      print('Gemini API error: $e');
+      debugPrint('Gemini API error: $e');
       return _getFallbackResponse(userMessage);
     }
   }
@@ -139,7 +139,9 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
   }
 
   /// Generate personalized recommendations based on child profile.
-  Future<List<RecommendationModel>> getRecommendations(ChildProfileModel profile) async {
+  Future<List<RecommendationModel>> getRecommendations(
+    ChildProfileModel profile,
+  ) async {
     if (_model == null) {
       return _getDefaultRecommendations(profile);
     }
@@ -167,21 +169,23 @@ Each object must have exactly these keys:
 
     try {
       final response = await _model!.generateContent([Content.text(prompt)]);
-      
+
       String jsonStr = response.text?.trim() ?? '';
-      
+
       // Cleanup markdown artifacts if present
       if (jsonStr.startsWith('```json')) {
-        jsonStr = jsonStr.replaceAll('```json', '').replaceAll('```', '').trim();
+        jsonStr =
+            jsonStr.replaceAll('```json', '').replaceAll('```', '').trim();
       } else if (jsonStr.startsWith('```')) {
         jsonStr = jsonStr.replaceAll('```', '').trim();
       }
 
       final List<dynamic> parsed = json.decode(jsonStr);
-      return parsed.map((e) => RecommendationModel.fromMap(e as Map<String, dynamic>)).toList();
+      return parsed
+          .map((e) => RecommendationModel.fromMap(e as Map<String, dynamic>))
+          .toList();
     } catch (e) {
-      // ignore: avoid_print
-      print('Failed to parse AI recommendations: $e');
+      debugPrint('Failed to parse AI recommendations: $e');
       return _getDefaultRecommendations(profile);
     }
   }
@@ -257,7 +261,9 @@ Tailor all advice and activities to this child's specific needs and abilities.
   }
 
   /// Default recommendations when AI is unavailable.
-  List<RecommendationModel> _getDefaultRecommendations(ChildProfileModel profile) {
+  List<RecommendationModel> _getDefaultRecommendations(
+    ChildProfileModel profile,
+  ) {
     return [
       RecommendationModel(
         title: 'Sensory Play Time',

@@ -1,0 +1,22 @@
+﻿Analyzing Ai-help...                                            
+
+   info - Don't invoke 'print' in production code - lib\services\ai_service.dart:41:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\ai_service.dart:42:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\ai_service.dart:43:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\ai_service.dart:51:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\services\ai_service.dart:70:5 - avoid_print
+   info - Don't invoke 'print' in production code - test\ai_service_completion_test.dart:15:5 - avoid_print
+   info - Don't invoke 'print' in production code - test\ai_service_init_test.dart:9:5 - avoid_print
+   info - Don't invoke 'print' in production code - test\env_test.dart:7:5 - avoid_print
+   info - Don't invoke 'print' in production code - test\fetch_models.dart:18:5 - avoid_print
+   info - Don't invoke 'print' in production code - test\fetch_models.dart:45:3 - avoid_print
+   info - Don't invoke 'print' in production code - test\firebase_ai_service_test.dart:14:7 - avoid_print
+   info - Don't invoke 'print' in production code - test\firebase_ai_service_test.dart:23:5 - avoid_print
+   info - Don't invoke 'print' in production code - test\list_models.dart:10:5 - avoid_print
+   info - Don't invoke 'print' in production code - test\list_models.dart:22:5 - avoid_print
+   info - Don't invoke 'print' in production code - test\list_models.dart:27:10 - avoid_print
+   info - Don't invoke 'print' in production code - test\list_models.dart:31:5 - avoid_print
+   info - Don't invoke 'print' in production code - test\list_models_test.dart:21:7 - avoid_print
+   info - Don't invoke 'print' in production code - test\list_models_test.dart:25:9 - avoid_print
+   info - Don't invoke 'print' in production code - test\list_models_test.dart:28:7 - avoid_print
+

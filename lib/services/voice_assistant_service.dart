@@ -85,14 +85,14 @@ VOICE MODE RULES (in addition to base rules):
       await _ttsService.init();
 
       // Monitor connectivity
-      _connectivitySub = Connectivity()
-          .onConnectivityChanged
-          .listen((results) {
+      _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
         final wasOnline = _isOnline;
         _isOnline = results.any((r) => r != ConnectivityResult.none);
 
         if (!_isOnline && wasOnline && isActive) {
-          _setError('You appear to be offline. Voice assistant needs an internet connection.');
+          _setError(
+            'You appear to be offline. Voice assistant needs an internet connection.',
+          );
           pauseSession();
         } else if (_isOnline && !wasOnline && isPaused) {
           clearError();
@@ -105,6 +105,7 @@ VOICE MODE RULES (in addition to base rules):
       return _speechAvailable;
     } catch (e) {
       debugPrint('VoiceAssistant init error: $e');
+      _errorMessage = 'Speech initialization failed: $e';
       _speechAvailable = false;
       notifyListeners();
       return false;
@@ -129,10 +130,7 @@ VOICE MODE RULES (in addition to base rules):
     // Initialize AI chat with child context
     _aiService.startChatSession(childProfile: childProfile);
 
-    _session = VoiceSessionModel.create(
-      sessionId: _uuid.v4(),
-      mode: mode,
-    );
+    _session = VoiceSessionModel.create(sessionId: _uuid.v4(), mode: mode);
     _lastUserText = '';
     _lastAiText = '';
     _errorMessage = null;
@@ -202,9 +200,10 @@ VOICE MODE RULES (in addition to base rules):
   void toggleMode() {
     if (_session == null) return;
 
-    final newMode = _session!.mode == VoiceMode.pushToTalk
-        ? VoiceMode.continuous
-        : VoiceMode.pushToTalk;
+    final newMode =
+        _session!.mode == VoiceMode.pushToTalk
+            ? VoiceMode.continuous
+            : VoiceMode.pushToTalk;
 
     // Stop any active listening first
     if (_speech.isListening) {
@@ -301,12 +300,14 @@ VOICE MODE RULES (in addition to base rules):
 
     // Save user message to Firestore
     try {
-      await _firebaseService.sendChatMessage(ChatMessageModel(
-        id: '',
-        message: text,
-        sender: 'user',
-        timestamp: DateTime.now(),
-      ));
+      await _firebaseService.sendChatMessage(
+        ChatMessageModel(
+          id: '',
+          message: text,
+          sender: 'user',
+          timestamp: DateTime.now(),
+        ),
+      );
     } catch (_) {
       // Non-critical: message save failed, continue with AI response
     }
@@ -328,18 +329,18 @@ VOICE MODE RULES (in addition to base rules):
 
       if (_disposed || _session == null) return;
 
-      _session = _session!.copyWith(
-        messageCount: _session!.messageCount + 1,
-      );
+      _session = _session!.copyWith(messageCount: _session!.messageCount + 1);
 
       // Save AI response to Firestore
       try {
-        await _firebaseService.sendChatMessage(ChatMessageModel(
-          id: '',
-          message: fullResponse,
-          sender: 'ai',
-          timestamp: DateTime.now(),
-        ));
+        await _firebaseService.sendChatMessage(
+          ChatMessageModel(
+            id: '',
+            message: fullResponse,
+            sender: 'ai',
+            timestamp: DateTime.now(),
+          ),
+        );
       } catch (_) {
         // Non-critical
       }
@@ -412,8 +413,7 @@ VOICE MODE RULES (in addition to base rules):
       return;
     }
 
-    if (errorMsg.contains('error_audio') ||
-        errorMsg.contains('error_server')) {
+    if (errorMsg.contains('error_audio') || errorMsg.contains('error_server')) {
       _setError('Audio error. Please check your microphone.');
       _updateStatus(VoiceStatus.idle);
       return;
@@ -427,8 +427,7 @@ VOICE MODE RULES (in addition to base rules):
     if (status == 'notListening' && _session != null) {
       if (_session!.status == VoiceStatus.listening) {
         // STT stopped on its own (timeout)
-        if (_session!.mode == VoiceMode.continuous &&
-            _lastUserText.isEmpty) {
+        if (_session!.mode == VoiceMode.continuous && _lastUserText.isEmpty) {
           // No speech detected, try again
           Future.delayed(const Duration(milliseconds: 500), () {
             if (!_disposed && _session?.mode == VoiceMode.continuous) {
@@ -465,12 +464,14 @@ VOICE MODE RULES (in addition to base rules):
 
   void _logEvent(String eventType, Map<String, dynamic> metadata) {
     try {
-      _firebaseService.saveUserEvent(UserEventModel(
-        eventType: eventType,
-        screenName: 'voice_assistant',
-        metadata: metadata,
-        timestamp: DateTime.now(),
-      ));
+      _firebaseService.saveUserEvent(
+        UserEventModel(
+          eventType: eventType,
+          screenName: 'voice_assistant',
+          metadata: metadata,
+          timestamp: DateTime.now(),
+        ),
+      );
     } catch (_) {
       // Non-critical
     }
