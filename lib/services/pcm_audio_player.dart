@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
+import '../core/utils/app_logger.dart';
+import '../core/errors/app_exceptions.dart';
 
 /// Plays a continuous stream of raw 16-bit PCM audio chunks.
 /// Specifically designed to play the 24kHz PCM output from the Gemini Live API.
@@ -30,7 +32,12 @@ class PcmAudioPlayer {
         }
       },
       onDone: () => _streamController?.close(),
-      onError: (e) => _streamController?.addError(e),
+      onError: (e, stack) {
+        AppLogger.error('PcmAudioPlayer', 'Error in PCM stream', e, stack);
+        if (!(_streamController?.isClosed ?? true)) {
+          _streamController?.addError(e);
+        }
+      },
     );
 
     final source = _PcmStreamAudioSource(_streamController!.stream, sampleRate);
@@ -38,8 +45,9 @@ class PcmAudioPlayer {
     try {
       await _player.setAudioSource(source);
       await _player.play();
-    } catch (e) {
-      debugPrint('Error playing PCM stream: $e');
+    } catch (e, stack) {
+      AppLogger.error('PcmAudioPlayer', 'Failed to play PCM stream', e, stack);
+      throw AudioException('Failed to play audio stream', originalError: e);
     }
   }
 

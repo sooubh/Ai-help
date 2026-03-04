@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/utils/validators.dart';
+import '../../../core/utils/ui_helpers.dart';
 import '../../../services/firebase_service.dart';
 import '../../../widgets/custom_text_field.dart';
 
@@ -46,8 +47,6 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       // Validate that the user's fetched role matches the selected role
-      // In a real app, you might just rely on the stored role, but this
-      // enforces the selector they chose.
       if (profile?.role == 'doctor' && !_isDoctor) {
         _showError('This account belongs to a Doctor. Please switch tabs.');
         await _firebaseService.signOut();
@@ -116,7 +115,6 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         }
       }
-      // user == null means cancelled — do nothing
     } on Exception catch (e) {
       if (!mounted) return;
       _showError(e.toString().replaceAll('Exception: ', ''));
@@ -126,9 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: AppColors.error),
-    );
+    UiHelpers.showErrorSnackbar(context, message);
   }
 
   @override

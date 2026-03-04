@@ -14,12 +14,30 @@ import '../models/guidance_note_model.dart';
 import '../models/doctor_model.dart';
 import '../models/post_model.dart';
 import '../models/therapy_session_model.dart';
+import '../core/utils/app_logger.dart';
+import '../core/errors/app_exceptions.dart';
 
 /// Centralized Firebase service handling Auth, Firestore reads/writes.
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+
+  /// Centralized exception handler for Firebase routines
+  Future<T> _guard<T>(Future<T> Function() operation, {String operationName = 'Firebase'}) async {
+    try {
+      return await operation();
+    } on FirebaseAuthException catch (e) {
+      AppLogger.error('Auth ($operationName)', e.message ?? 'Unknown Auth Error', e, StackTrace.current);
+      throw AuthException(e.message ?? 'Authentication failed', code: e.code);
+    } on FirebaseException catch (e) {
+      AppLogger.error('Firestore ($operationName)', e.message ?? 'Unknown DB Error', e, StackTrace.current);
+      throw DataException(e.message ?? 'A database error occurred', originalError: e);
+    } catch (e, stack) {
+      AppLogger.error('FirebaseService ($operationName)', 'Unexpected Error', e, stack);
+      throw DataException('An unexpected error occurred: $e', originalError: e);
+    }
+  }
 
   // ─── Storage ──────────────────────────────────────────────────
 
@@ -60,91 +78,87 @@ class FirebaseService {
     String? displayName,
     String role = 'parent',
   }) async {
-    final credential = await _auth.createUserWithEmailAndPassword(
-      email: email.trim(),
-      password: password,
-    );
-    final user = credential.user;
-    if (user != null) {
-      // Update display name on Firebase Auth profile
-      if (displayName != null && displayName.isNotEmpty) {
-        await user.updateDisplayName(displayName.trim());
-      }
-
-      final userModel = UserModel(
-        uid: user.uid,
+    return _guard(() async {
+      final credential = await _auth.createUserWithEmailAndPassword(
         email: email.trim(),
-        displayName: displayName?.trim(),
-        role: role,
-        createdAt: DateTime.now(),
-        lastLoginAt: DateTime.now(),
+        password: password,
       );
-      await _firestore.collection('users').doc(user.uid).set(userModel.toMap());
-    }
-    return user;
-  }
+      final user = credential.user;
+      if (user != null) {
+        if (displayName != null && displayName.isNotEmpty) {
+          await user.updateDisplayName(displayName.trim());
+        }
 
-  /// Sign in with email & password.
-  Future<User?> signIn(String email, String password) async {
-    final credential = await _auth.signInWithEmailAndPassword(
-      email: email.trim(),
-      password: password,
-    );
-
-    // Update last login time
-    if (credential.user != null) {
-      await _firestore.collection('users').doc(credential.user!.uid).update({
-        'lastLoginAt': Timestamp.fromDate(DateTime.now()),
-      });
-    }
-
-    return credential.user;
-  }
-
-  /// Sign in with Google. Returns null if user cancels the picker.
-  Future<User?> signInWithGoogle({String role = 'parent'}) async {
-    // Trigger the native Google Sign-In flow
-    final googleUser = await GoogleSignIn().signIn();
-    if (googleUser == null) return null; // User cancelled
-
-    // Obtain auth details from the request
-    final googleAuth = await googleUser.authentication;
-
-    // Create a credential for Firebase
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
-
-    // Sign in to Firebase with the Google credential
-    final userCredential = await _auth.signInWithCredential(credential);
-    final user = userCredential.user;
-
-    if (user != null) {
-      // Create or update user document (merge so we don't lose existing data)
-      final userDoc = _firestore.collection('users').doc(user.uid);
-      final docSnapshot = await userDoc.get();
-
-      if (!docSnapshot.exists) {
-        // New user — create full profile
         final userModel = UserModel(
           uid: user.uid,
-          email: user.email ?? '',
-          displayName: user.displayName,
+          email: email.trim(),
+          displayName: displayName?.trim(),
           role: role,
           createdAt: DateTime.now(),
           lastLoginAt: DateTime.now(),
         );
-        await userDoc.set(userModel.toMap());
-      } else {
-        // Existing user — just update last login
-        await userDoc.update({
+        await _firestore.collection('users').doc(user.uid).set(userModel.toMap());
+      }
+      return user;
+    }, operationName: 'signUp');
+  }
+
+  /// Sign in with email & password.
+  Future<User?> signIn(String email, String password) async {
+    return _guard(() async {
+      final credential = await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
+      );
+
+      if (credential.user != null) {
+        await _firestore.collection('users').doc(credential.user!.uid).update({
           'lastLoginAt': Timestamp.fromDate(DateTime.now()),
         });
       }
-    }
 
-    return user;
+      return credential.user;
+    }, operationName: 'signIn');
+  }
+
+  /// Sign in with Google. Returns null if user cancels the picker.
+  Future<User?> signInWithGoogle({String role = 'parent'}) async {
+    return _guard(() async {
+      final googleUser = await GoogleSignIn().signIn();
+      if (googleUser == null) return null;
+
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      final userCredential = await _auth.signInWithCredential(credential);
+      final user = userCredential.user;
+
+      if (user != null) {
+        final userDoc = _firestore.collection('users').doc(user.uid);
+        final docSnapshot = await userDoc.get();
+
+        if (!docSnapshot.exists) {
+          final userModel = UserModel(
+            uid: user.uid,
+            email: user.email ?? '',
+            displayName: user.displayName,
+            role: role,
+            createdAt: DateTime.now(),
+            lastLoginAt: DateTime.now(),
+          );
+          await userDoc.set(userModel.toMap());
+        } else {
+          await userDoc.update({
+            'lastLoginAt': Timestamp.fromDate(DateTime.now()),
+          });
+        }
+      }
+
+      return user;
+    }, operationName: 'signInWithGoogle');
   }
 
   /// Send password reset email.
@@ -192,12 +206,21 @@ class FirebaseService {
 
   /// Get the current user's profile data.
   Future<UserModel?> getUserProfile() async {
-    final uid = currentUser?.uid;
-    if (uid == null) return null;
+    return _guard(() async {
+      final uid = currentUser?.uid;
+      if (uid == null) return null;
 
-    final doc = await _firestore.collection('users').doc(uid).get();
-    if (!doc.exists || doc.data() == null) return null;
-    return UserModel.fromMap(doc.data()!, uid);
+      try {
+        final doc = await _firestore.collection('users').doc(uid).get();
+        if (!doc.exists || doc.data() == null) return null;
+        return UserModel.fromMap(doc.data()!, uid);
+      } catch (e) {
+        // Fallback to cache if network fails
+        final doc = await _firestore.collection('users').doc(uid).get(const GetOptions(source: Source.cache));
+        if (!doc.exists || doc.data() == null) return null;
+        return UserModel.fromMap(doc.data()!, uid);
+      }
+    }, operationName: 'getUserProfile');
   }
 
   /// Update user profile fields.
@@ -212,63 +235,70 @@ class FirebaseService {
 
   /// Save or update the child profile under the current user.
   Future<String> saveChildProfile(ChildProfileModel profile) async {
-    final uid = currentUser?.uid;
-    if (uid == null) throw Exception('User not authenticated');
+    return _guard(() async {
+      final uid = currentUser?.uid;
+      if (uid == null) throw const AuthException('User not authenticated');
 
-    final collection = _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('children');
+      final collection = _firestore.collection('users').doc(uid).collection('children');
 
-    if (profile.id != null) {
-      // Update existing
-      await collection.doc(profile.id).set(profile.toMap());
-      return profile.id!;
-    } else {
-      // Create new
-      final doc = await collection.add(profile.toMap());
-      return doc.id;
-    }
+      if (profile.id != null) {
+        await collection.doc(profile.id).set(profile.toMap());
+        return profile.id!;
+      } else {
+        final doc = await collection.add(profile.toMap());
+        return doc.id;
+      }
+    }, operationName: 'saveChildProfile');
   }
 
   /// Get all child profiles for the current user.
   Future<List<ChildProfileModel>> getChildProfiles() async {
-    final uid = currentUser?.uid;
-    if (uid == null) return [];
+    return _guard(() async {
+      final uid = currentUser?.uid;
+      if (uid == null) return [];
 
-    final snapshot =
-        await _firestore
+      try {
+        final snapshot = await _firestore
             .collection('users')
             .doc(uid)
             .collection('children')
             .orderBy('createdAt', descending: false)
             .get();
-
-    return snapshot.docs
-        .map((doc) => ChildProfileModel.fromMap(doc.data(), doc.id))
-        .toList();
+        return snapshot.docs.map((doc) => ChildProfileModel.fromMap(doc.data(), doc.id)).toList();
+      } catch (e) {
+        // Fallback to cache
+        final snapshot = await _firestore
+            .collection('users')
+            .doc(uid)
+            .collection('children')
+            .orderBy('createdAt', descending: false)
+            .get(const GetOptions(source: Source.cache));
+        return snapshot.docs.map((doc) => ChildProfileModel.fromMap(doc.data(), doc.id)).toList();
+      }
+    }, operationName: 'getChildProfiles');
   }
 
   /// Get a single child profile.
   Future<ChildProfileModel?> getChildProfile([String? childId]) async {
-    final uid = currentUser?.uid;
-    if (uid == null) return null;
+    return _guard(() async {
+      final uid = currentUser?.uid;
+      if (uid == null) return null;
 
-    if (childId != null) {
-      final doc =
-          await _firestore
-              .collection('users')
-              .doc(uid)
-              .collection('children')
-              .doc(childId)
-              .get();
-      if (!doc.exists || doc.data() == null) return null;
-      return ChildProfileModel.fromMap(doc.data()!, doc.id);
-    }
+      if (childId != null) {
+        try {
+          final doc = await _firestore.collection('users').doc(uid).collection('children').doc(childId).get();
+          if (!doc.exists || doc.data() == null) return null;
+          return ChildProfileModel.fromMap(doc.data()!, doc.id);
+        } catch (e) {
+          final doc = await _firestore.collection('users').doc(uid).collection('children').doc(childId).get(const GetOptions(source: Source.cache));
+          if (!doc.exists || doc.data() == null) return null;
+          return ChildProfileModel.fromMap(doc.data()!, doc.id);
+        }
+      }
 
-    // Return first child if no ID specified
-    final profiles = await getChildProfiles();
-    return profiles.isNotEmpty ? profiles.first : null;
+      final profiles = await getChildProfiles();
+      return profiles.isNotEmpty ? profiles.first : null;
+    }, operationName: 'getChildProfile');
   }
 
   // ─── Chat Messages ─────────────────────────────────────────

@@ -9,8 +9,11 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'firebase_options.dart';
 import 'core/config/env_config.dart';
+import 'dart:ui';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
+import 'core/theme/app_colors.dart';
+import 'core/utils/app_logger.dart';
 import 'services/ai_service.dart';
 import 'features/auth/presentation/login_screen.dart';
 import 'features/auth/presentation/signup_screen.dart';
@@ -57,6 +60,44 @@ void main() async {
     debugPrint('No .env file found. Falling back to environment variables.');
   }
 
+  // Global Error Handlers
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    AppLogger.error('FlutterError', details.exceptionAsString(), details.exception, details.stack);
+  };
+
+  PlatformDispatcher.instance.onError = (error, stack) {
+    AppLogger.error('PlatformDispatcher', error.toString(), error, stack);
+    return true; // Prevent default crash
+  };
+
+  // User-friendly UI for rendering errors
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Material(
+      child: Container(
+        color: AppColors.background,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 48),
+            const SizedBox(height: 16),
+            const Text(
+              'Oops! Something went wrong.', 
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)
+            ),
+            const SizedBox(height: 8),
+            Text(
+              details.exceptionAsString(), 
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)
+            ),
+          ],
+        ),
+      ),
+    );
+  };
+
   // Initialize Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
@@ -94,8 +135,8 @@ void main() async {
     final themeProvider = ThemeProvider();
     try {
       await themeProvider.loadTheme();
-    } catch (e) {
-      debugPrint('Theme provider init failed: $e');
+    } catch (e, stack) {
+      AppLogger.error('Main', 'Theme provider init failed', e, stack);
     }
 
     // Set system UI overlay style
@@ -117,7 +158,7 @@ void main() async {
       ),
     );
   } catch (e, stack) {
-    debugPrint('Fatal error during startup: $e\n$stack');
+    AppLogger.error('Main', 'Fatal error during startup', e, stack);
     // Fallback run app so it never gets stuck on black screen
     runApp(
       MaterialApp(

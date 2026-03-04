@@ -13,6 +13,8 @@ import '../models/user_event_model.dart';
 import 'gemini_live_service.dart';
 import 'pcm_audio_player.dart';
 import 'firebase_service.dart';
+import '../core/utils/app_logger.dart';
+import '../core/errors/app_exceptions.dart';
 
 class VoiceAssistantService extends ChangeNotifier {
   final GeminiLiveService _liveService = GeminiLiveService();
@@ -60,8 +62,8 @@ class VoiceAssistantService extends ChangeNotifier {
       });
       
       return _micAvailable;
-    } catch (e) {
-      debugPrint('VoiceAssistant init error: $e');
+    } catch (e, stack) {
+      AppLogger.error('VoiceAssistantService', 'Initialization error', e, stack);
       _micAvailable = false;
       return false;
     }
@@ -143,8 +145,9 @@ RULES:
       _updateWaveform(data);
       // Stream mic input directly to Gemini
       _liveService.sendAudioChunk(data);
-    }, onError: (e) {
-      _setError('Microphone error.');
+    }, onError: (e, stack) {
+      AppLogger.error('VoiceAssistantService', 'Microphone stream error', e, stack);
+      _setError('Microphone error hardware disconnected.');
     });
   }
 
@@ -239,6 +242,7 @@ RULES:
   }
 
   void _setError(String message) {
+    AppLogger.error('VoiceAssistantService', 'Session Error: $message');
     _errorMessage = message;
     if (_session != null) {
       _session = _session!.copyWith(

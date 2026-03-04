@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../core/config/env_config.dart';
+import '../core/utils/app_logger.dart';
 import '../models/child_profile_model.dart';
 import '../models/recommendation_model.dart';
 
@@ -130,16 +131,16 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
     try {
       final response = await _chatSession!.sendMessage(
         Content.text(userMessage),
-      );
+      ).timeout(const Duration(seconds: 15));
 
       final text = response.text;
       if (text == null || text.isEmpty) {
+        AppLogger.warning('AiService.getResponse', 'Received empty text from Gemini. Using gentle prompt.');
         return 'I understand your question. Could you please provide more details so I can give you better guidance?';
       }
       return text;
-    } catch (e) {
-      // ignore: avoid_print
-      print('Gemini API error: $e');
+    } catch (e, stack) {
+      AppLogger.error('AiService.getResponse', 'Gemini API call failed', e, stack);
       return _getFallbackResponse(userMessage);
     }
   }
@@ -208,7 +209,8 @@ Each object must have exactly these keys:
 ''';
 
     try {
-      final response = await _model!.generateContent([Content.text(prompt)]);
+      final response = await _model!.generateContent([Content.text(prompt)])
+          .timeout(const Duration(seconds: 20));
       
       String jsonStr = response.text?.trim() ?? '';
       
@@ -221,9 +223,8 @@ Each object must have exactly these keys:
 
       final List<dynamic> parsed = json.decode(jsonStr);
       return parsed.map((e) => RecommendationModel.fromMap(e as Map<String, dynamic>)).toList();
-    } catch (e) {
-      // ignore: avoid_print
-      print('Failed to parse AI recommendations: $e');
+    } catch (e, stack) {
+      AppLogger.error('AiService.getRecommendations', 'Failed to generate recommendations', e, stack);
       return _getDefaultRecommendations(profile);
     }
   }

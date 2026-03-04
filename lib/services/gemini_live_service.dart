@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../core/config/env_config.dart';
+import '../core/utils/app_logger.dart';
 
 /// Service for managing the bidirectional WebSocket connection 
 /// to the Gemini Live API with Native Audio support.
@@ -24,7 +25,7 @@ class GeminiLiveService {
     
     final apiKey = EnvConfig.geminiApiKey;
     if (apiKey.isEmpty) {
-      debugPrint('Gemini API key is missing');
+      AppLogger.error('GeminiLiveService', 'Gemini API key is missing');
       return;
     }
 
@@ -37,12 +38,12 @@ class GeminiLiveService {
       // Listen to incoming messages before sending setup
       _channel!.stream.listen(
         _onMessage,
-        onError: (e) {
-          debugPrint('WebSocket error: $e');
+        onError: (e, stack) {
+          AppLogger.error('GeminiLiveService', 'WebSocket error', e, stack);
           disconnect();
         },
         onDone: () {
-          debugPrint('WebSocket closed');
+          AppLogger.info('GeminiLiveService', 'WebSocket closed');
           disconnect();
         },
       );
@@ -87,8 +88,8 @@ class GeminiLiveService {
       };
       
       _channel!.sink.add(jsonEncode(setupMessage));
-    } catch (e) {
-      debugPrint('Error connecting WebSocket: $e');
+    } catch (e, stack) {
+      AppLogger.error('GeminiLiveService', 'Error connecting WebSocket', e, stack);
       disconnect();
     }
   }
@@ -98,8 +99,8 @@ class GeminiLiveService {
     if (_channel == null) return;
     try {
       _channel!.sink.add(jsonEncode(data));
-    } catch (e) {
-      debugPrint('Error sending JSON: $e');
+    } catch (e, stack) {
+      AppLogger.error('GeminiLiveService', 'Error sending JSON', e, stack);
     }
   }
 
@@ -130,8 +131,8 @@ class GeminiLiveService {
           }
         }
       }
-    } catch (e) {
-      debugPrint('Error parsing WebSocket message: $e');
+    } catch (e, stack) {
+      AppLogger.error('GeminiLiveService', 'Error parsing WebSocket message', e, stack);
     }
   }
 
@@ -153,8 +154,8 @@ class GeminiLiveService {
     
     try {
       _channel!.sink.add(jsonEncode(message));
-    } catch (e) {
-      debugPrint('Error sending audio: $e');
+    } catch (e, stack) {
+      AppLogger.error('GeminiLiveService', 'Error sending audio chunk', e, stack);
     }
   }
   
@@ -173,8 +174,8 @@ class GeminiLiveService {
     };
     try {
       _channel!.sink.add(jsonEncode(message));
-    } catch (e) {
-      debugPrint('Error sending client content: $e');
+    } catch (e, stack) {
+      AppLogger.error('GeminiLiveService', 'Error sending client content', e, stack);
     }
   }
 
