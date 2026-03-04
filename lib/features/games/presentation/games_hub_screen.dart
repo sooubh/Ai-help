@@ -9,6 +9,9 @@ import 'drag_sort_game_screen.dart';
 import 'emotion_quiz_game_screen.dart';
 import 'sound_match_game_screen.dart';
 import 'visual_tracker_game_screen.dart';
+import 'breathing_bubble_game_screen.dart';
+import 'shape_matcher_game_screen.dart';
+import 'sequence_memory_game_screen.dart';
 
 /// Games Hub — grid of interactive therapy games.
 class GamesHubScreen extends StatelessWidget {
@@ -185,5 +188,29 @@ final _games = [
     icon: Icons.visibility_rounded,
     color: const Color(0xFFEC4899),
     screen: const VisualTrackerGameScreen(),
+  ),
+  _GameInfo(
+    title: 'Breathing Bubble',
+    skill: 'Wellness',
+    ageRange: 'Ages 3-12',
+    icon: Icons.air_rounded,
+    color: const Color(0xFF38BDF8),
+    screen: const BreathingBubbleGameScreen(),
+  ),
+  _GameInfo(
+    title: 'Shape Matcher',
+    skill: 'Motor Skills',
+    ageRange: 'Ages 3-7',
+    icon: Icons.category_rounded,
+    color: const Color(0xFF8B5CF6),
+    screen: const ShapeMatcherGameScreen(),
+  ),
+  _GameInfo(
+    title: 'Sequence Memory',
+    skill: 'Cognitive',
+    ageRange: 'Ages 5-12',
+    icon: Icons.memory_rounded,
+    color: const Color(0xFFF43F5E),
+    screen: const SequenceMemoryGameScreen(),
   ),
 ];
