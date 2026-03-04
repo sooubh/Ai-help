@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/data/therapy_modules_registry.dart';
 import '../../../models/therapy_module_model.dart';
 import '../../../services/firebase_service.dart';
-import 'module_detail_screen.dart';
+import 'therapy_activity_screen.dart';
 
 /// Therapy Modules Library — browse, filter, and search activities.
 class ModulesLibraryScreen extends StatefulWidget {
@@ -23,14 +24,9 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
   final _firebaseService = FirebaseService();
 
   // Sample categories for filters
-  static const _categories = [
+  static final _categories = [
     'All',
-    'Communication',
-    'Motor Skills',
-    'Sensory',
-    'Cognitive',
-    'Social Skills',
-    'Behavioral',
+    ...TherapyModulesRegistry.categories,
   ];
 
   static const _difficulties = ['All', 'Beginner', 'Easy', 'Medium', 'Hard', 'Expert'];
@@ -63,7 +59,7 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
   }
 
   List<TherapyModuleModel> get _filteredModules {
-    var modules = _sampleModules;
+    var modules = TherapyModulesRegistry.allModules;
 
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
@@ -291,7 +287,7 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => ModuleDetailScreen(
+                            builder: (_) => TherapyActivityScreen(
                                 module: module),
                           ),
                         ),
@@ -482,6 +478,18 @@ class _ModuleCard extends StatelessWidget {
         return const Color(0xFF10B981);
       case 'Behavioral':
         return AppColors.secondary;
+      case 'Emotional Recognition':
+        return const Color(0xFFEC4899);
+      case 'Memory':
+        return const Color(0xFF8B5CF6);
+      case 'Attention':
+        return const Color(0xFFEF4444);
+      case 'Social Interaction':
+        return const Color(0xFF10B981);
+      case 'Speech & Language':
+        return const Color(0xFF06B6D4);
+      case 'Problem Solving':
+        return const Color(0xFFF97316);
       default:
         return AppColors.primary;
     }
@@ -501,6 +509,18 @@ class _ModuleCard extends StatelessWidget {
         return Icons.groups_rounded;
       case 'Behavioral':
         return Icons.emoji_emotions_rounded;
+      case 'Emotional Recognition':
+        return Icons.mood_rounded;
+      case 'Memory':
+        return Icons.grid_view_rounded;
+      case 'Attention':
+        return Icons.center_focus_strong_rounded;
+      case 'Social Interaction':
+        return Icons.people_rounded;
+      case 'Speech & Language':
+        return Icons.record_voice_over_rounded;
+      case 'Problem Solving':
+        return Icons.lightbulb_rounded;
       default:
         return Icons.extension_rounded;
     }
@@ -550,160 +570,4 @@ class _Tag extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// SAMPLE DATA (will be replaced by Firestore in production)
-// ═══════════════════════════════════════════════════════════════
-final _sampleModules = [
-  TherapyModuleModel(
-    id: '1',
-    title: 'Picture Card Communication',
-    objective: 'Help your child express needs and feelings using picture cards for visual communication support.',
-    conditionTypes: ['ASD', 'Speech Delay'],
-    ageRange: '3-8',
-    skillCategory: 'Communication',
-    difficultyLevel: 1,
-    materials: ['Picture cards', 'Board or table'],
-    instructions: [
-      'Lay 4-6 picture cards on the table',
-      'Ask your child "What do you want?"',
-      'Guide them to point or pick a card',
-      'Reinforce by naming the item out loud',
-      'Praise their effort warmly',
-    ],
-    durationMinutes: 10,
-    safetyNotes: 'Use age-appropriate images. Avoid scolding for wrong choices.',
-  ),
-  TherapyModuleModel(
-    id: '2',
-    title: 'Texture Exploration Box',
-    objective: 'Develop sensory tolerance and awareness through guided texture exploration activities.',
-    conditionTypes: ['Sensory Processing', 'ASD'],
-    ageRange: '2-6',
-    skillCategory: 'Sensory',
-    difficultyLevel: 2,
-    materials: ['Soft cloth', 'Sand', 'Rice', 'Slime', 'Container'],
-    instructions: [
-      'Place materials in separate containers',
-      'Let the child observe first',
-      'Encourage gentle touching of each material',
-      'Name the textures: "This is soft", "This is grainy"',
-      'Never force contact — let the child lead',
-    ],
-    durationMinutes: 15,
-    safetyNotes: 'Watch for signs of distress. Stop if overwhelmed. Non-toxic materials only.',
-  ),
-  TherapyModuleModel(
-    id: '3',
-    title: 'Block Stacking Challenge',
-    objective: 'Improve fine motor control, hand-eye coordination and spatial awareness through block stacking.',
-    conditionTypes: ['Cerebral Palsy', 'Motor Delay'],
-    ageRange: '2-7',
-    skillCategory: 'Motor Skills',
-    difficultyLevel: 1,
-    materials: ['Large blocks (soft or wooden)', 'Flat surface'],
-    instructions: [
-      'Start with 2 large blocks',
-      'Demonstrate stacking slowly',
-      'Guide the child\'s hand if needed',
-      'Gradually add more blocks',
-      'Celebrate each small success',
-    ],
-    durationMinutes: 10,
-    safetyNotes: 'Use soft blocks for children with limited grip. Supervise closely.',
-  ),
-  TherapyModuleModel(
-    id: '4',
-    title: 'Emotion Matching Game',
-    objective: 'Help children recognize and label different emotions through a fun matching activity.',
-    conditionTypes: ['ASD', 'ADHD', 'Learning Disability'],
-    ageRange: '4-10',
-    skillCategory: 'Social Skills',
-    difficultyLevel: 2,
-    materials: ['Emotion flashcards', 'Mirror (optional)'],
-    instructions: [
-      'Show an emotion face card (happy, sad, angry)',
-      'Name the emotion clearly',
-      'Ask: "Can you make this face?"',
-      'Use a mirror for the child to see their own expression',
-      'Match emotions to situations: "When do you feel happy?"',
-    ],
-    durationMinutes: 12,
-    safetyNotes: 'Keep it playful. Don\'t push if the child becomes frustrated.',
-  ),
-  TherapyModuleModel(
-    id: '5',
-    title: 'Sound Identification Activity',
-    objective: 'Enhance auditory processing and attention by identifying common environmental sounds.',
-    conditionTypes: ['ASD', 'ADHD', 'Hearing Processing'],
-    ageRange: '3-9',
-    skillCategory: 'Cognitive',
-    difficultyLevel: 2,
-    materials: ['Audio recordings of sounds', 'Picture cards of sound sources'],
-    instructions: [
-      'Play a familiar sound (dog barking, doorbell)',
-      'Ask: "What makes this sound?"',
-      'Show matching picture cards',
-      'Let the child point to the correct one',
-      'Increase complexity with similar sounds',
-    ],
-    durationMinutes: 10,
-    safetyNotes: 'Keep volume comfortable. Watch for sensory overload signs.',
-  ),
-  TherapyModuleModel(
-    id: '6',
-    title: 'Turn-Taking Board Game',
-    objective: 'Practice taking turns, waiting, and following rules through structured board game play.',
-    conditionTypes: ['ASD', 'ADHD'],
-    ageRange: '5-12',
-    skillCategory: 'Behavioral',
-    difficultyLevel: 3,
-    materials: ['Simple board game', 'Timer (optional)'],
-    instructions: [
-      'Choose a simple game with clear turns',
-      'Explain the rules with visuals',
-      'Use a timer or token to signal "your turn"',
-      'Model waiting calmly while others play',
-      'Praise good waiting and turn-taking',
-    ],
-    durationMinutes: 20,
-    safetyNotes: 'Adapt rules to child\'s level. Keep games short initially.',
-  ),
-  TherapyModuleModel(
-    id: '7',
-    title: 'Breathing Butterfly Exercise',
-    objective: 'Teach calming deep breathing techniques using a visual butterfly metaphor.',
-    conditionTypes: ['ASD', 'ADHD', 'Anxiety'],
-    ageRange: '3-12',
-    skillCategory: 'Behavioral',
-    difficultyLevel: 1,
-    materials: ['Butterfly cutout (optional)'],
-    instructions: [
-      'Hold hands up like butterfly wings',
-      'Breathe in slowly — open "wings" wide',
-      'Breathe out slowly — close "wings" gently',
-      'Repeat 5 times with the child',
-      'Use during calm moments first, then during mild stress',
-    ],
-    durationMinutes: 5,
-    safetyNotes: 'Never force breathing exercises. Make it playful.',
-  ),
-  TherapyModuleModel(
-    id: '8',
-    title: 'Finger Painting Expression',
-    objective: 'Develop fine motor skills and creative expression through guided finger painting.',
-    conditionTypes: ['Motor Delay', 'ASD', 'Down Syndrome'],
-    ageRange: '2-8',
-    skillCategory: 'Motor Skills',
-    difficultyLevel: 1,
-    materials: ['Non-toxic finger paints', 'Large paper', 'Apron/old clothes'],
-    instructions: [
-      'Set up a protected painting area',
-      'Demonstrate finger painting strokes',
-      'Let the child explore freely',
-      'Name colors and shapes they make',
-      'Display their artwork proudly',
-    ],
-    durationMinutes: 15,
-    safetyNotes: 'Use non-toxic, washable paints only. Supervise young children closely.',
-  ),
-];
+

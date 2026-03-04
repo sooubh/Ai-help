@@ -13,6 +13,7 @@ import '../models/game_session_model.dart';
 import '../models/guidance_note_model.dart';
 import '../models/doctor_model.dart';
 import '../models/post_model.dart';
+import '../models/therapy_session_model.dart';
 
 /// Centralized Firebase service handling Auth, Firestore reads/writes.
 class FirebaseService {
@@ -654,6 +655,126 @@ class FirebaseService {
       completedAt: session.completedAt,
     );
     await logActivity(activityLog);
+  }
+
+  // ─── Therapy Sessions ──────────────────────────────────
+
+  /// Save a completed therapy session.
+  Future<void> saveTherapySession(TherapySessionModel session,
+      [String? childId]) async {
+    final uid = currentUser?.uid;
+    if (uid == null) throw Exception('User not authenticated');
+
+    // Save to child-specific subcollection if childId is provided
+    if (childId != null) {
+      await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('children')
+          .doc(childId)
+          .collection('therapy_sessions')
+          .add(session.toMap());
+    }
+
+    // Also save to user-level collection for quick queries
+    await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('therapy_sessions')
+        .add(session.toMap());
+
+    // Log as activity too for streak/chart compatibility
+    final activityLog = ActivityLogModel(
+      activityId: session.moduleId,
+      activityTitle: session.moduleTitle,
+      category: session.skillCategory,
+      durationSeconds: session.timeSpentSeconds,
+      stepsCompleted: session.stepsCompleted,
+      completedAt: session.completedAt,
+    );
+    await logActivity(activityLog);
+  }
+
+  /// Get therapy sessions, optionally filtered by skill category.
+  Future<List<TherapySessionModel>> getTherapySessions({
+    int limit = 50,
+    String? skillCategory,
+  }) async {
+    final uid = currentUser?.uid;
+    if (uid == null) return [];
+
+    Query query = _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('therapy_sessions')
+        .orderBy('completedAt', descending: true);
+
+    if (skillCategory != null) {
+      query = query.where('skillCategory', isEqualTo: skillCategory);
+    }
+
+    final snapshot = await query.limit(limit).get();
+
+    return snapshot.docs
+        .map((doc) => TherapySessionModel.fromMap(
+            doc.data() as Map<String, dynamic>, doc.id))
+        .toList();
+  }
+
+  /// Get the set of module IDs that have been completed at least once.
+  Future<Set<String>> getCompletedModuleIds() async {
+    final uid = currentUser?.uid;
+    if (uid == null) return {};
+
+    final snapshot = await _firestore
+        .collection('users')
+        .doc(uid)
+        .collection('therapy_sessions')
+        .get();
+
+    return snapshot.docs
+        .map((doc) => doc.data()['moduleId'] as String? ?? '')
+        .where((id) => id.isNotEmpty)
+        .toSet();
+  }
+
+  /// Build a comprehensive therapy history summary for AI analysis.
+  Future<Map<String, dynamic>> getChildTherapyHistory(
+      [String? childId]) async {
+    final sessions = await getTherapySessions(limit: 100);
+    final weeklyStats = await getWeeklyStats();
+    final skillProg = await getSkillProgress();
+    final completedIds = await getCompletedModuleIds();
+
+    // Aggregate per-category performance
+    final categoryScores = <String, List<double>>{};
+    for (final s in sessions) {
+      categoryScores.putIfAbsent(s.skillCategory, () => []);
+      categoryScores[s.skillCategory]!.add(s.scorePercent);
+    }
+    final avgScores = <String, double>{};
+    for (final entry in categoryScores.entries) {
+      final avg =
+          entry.value.reduce((a, b) => a + b) / entry.value.length;
+      avgScores[entry.key] = double.parse(avg.toStringAsFixed(1));
+    }
+
+    return {
+      'totalSessionsCompleted': sessions.length,
+      'completedModuleIds': completedIds.toList(),
+      'weeklyStats': weeklyStats,
+      'skillProgress': skillProg,
+      'averageScoresByCategory': avgScores,
+      'recentSessions': sessions
+          .take(10)
+          .map((s) => {
+                'module': s.moduleTitle,
+                'category': s.skillCategory,
+                'score': '${s.scorePercent.toStringAsFixed(0)}%',
+                'difficulty': s.difficultyLevel,
+              })
+          .toList(),
+    };
   }
 
   // ─── User Event Tracking ───────────────────────────────

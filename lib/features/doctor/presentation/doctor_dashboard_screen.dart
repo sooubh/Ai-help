@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../services/permission_service.dart';
 import 'doctor_home_tab.dart';
 import 'doctor_requests_tab.dart';
 import 'doctor_patients_tab.dart';
@@ -23,6 +24,12 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
     DoctorPatientsTab(),
     DoctorProfileTab(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    PermissionService().requestEssentialPermissions();
+  }
 
   @override
   Widget build(BuildContext context) {

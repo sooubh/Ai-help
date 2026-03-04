@@ -35,12 +35,14 @@ import 'features/about/presentation/about_screen.dart';
 import 'features/community/presentation/community_screen.dart';
 import 'features/achievements/presentation/achievements_screen.dart';
 import 'features/voice/presentation/voice_assistant_screen.dart';
+import 'features/voice/presentation/global_voice_overlay.dart';
 import 'features/doctor/presentation/doctor_dashboard_screen.dart';
 import 'features/doctor/presentation/patient_detail_screen.dart';
 import 'features/doctor/presentation/assign_plan_screen.dart';
 import 'features/doctor/presentation/compose_guidance_note_screen.dart';
 import 'services/notification_service.dart';
 import 'services/firebase_service.dart';
+import 'services/voice_assistant_service.dart';
 
 /// Entry point for CARE-AI.
 /// Initializes Firebase, validates environment, sets up providers,
@@ -72,6 +74,14 @@ void main() async {
     final aiService = AiService();
     aiService.initialize();
 
+    // Initialize Voice Assistant Service
+    final voiceService = VoiceAssistantService();
+    try {
+      await voiceService.initialize();
+    } catch (e) {
+      debugPrint('Voice service init failed: $e');
+    }
+
     // Initialize push notifications
     final notificationService = NotificationService();
     try {
@@ -101,6 +111,7 @@ void main() async {
         providers: [
           ChangeNotifierProvider.value(value: themeProvider),
           Provider.value(value: aiService),
+          ChangeNotifierProvider.value(value: voiceService),
         ],
         child: const CareAiApp(),
       ),
@@ -169,6 +180,14 @@ class _CareAiAppState extends State<CareAiApp> with WidgetsBindingObserver {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeProvider.themeMode,
+      builder: (context, child) {
+        return Stack(
+          children: [
+            if (child != null) child,
+            const GlobalVoiceOverlay(),
+          ],
+        );
+      },
 
       // Auth-state listener decides initial route
       home: StreamBuilder<User?>(

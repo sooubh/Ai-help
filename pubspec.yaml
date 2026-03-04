@@ -56,6 +56,12 @@ dependencies:
   flutter_local_notifications: ^21.0.0-dev.2
   timezone: ^0.11.0
   google_generative_ai: ^0.4.7
+  permission_handler: ^12.0.1
+
+  # Real-time Audio (Gemini Live API)
+  record: ^5.2.0
+  web_socket_channel: ^3.0.0
+  just_audio: ^0.9.40
 
 dev_dependencies:
   flutter_test:

@@ -66,6 +66,34 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
             HarmCategory.sexuallyExplicit, HarmBlockThreshold.high),
         SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.medium),
       ],
+      tools: [
+        Tool(
+          functionDeclarations: [
+            FunctionDeclaration(
+              'perform_app_action',
+              'Navigate to different sections of the app or perform specific tasks.',
+              Schema(
+                SchemaType.object,
+                properties: {
+                  'action': Schema(
+                    SchemaType.string,
+                    description: 'The type of action. Usually "navigate".',
+                  ),
+                  'target': Schema(
+                    SchemaType.string,
+                    description: 'The target destination. Allowed values: home, dashboard, wellness, daily_plan, games, emergency.',
+                  ),
+                  'message': Schema(
+                    SchemaType.string,
+                    description: 'A brief verbal confirmation to speak to the user before navigating (e.g., "Taking you to the games hub.").',
+                  ),
+                },
+                requiredProperties: ['action', 'target', 'message'],
+              ),
+            ),
+          ],
+        )
+      ],
     );
     print('GenerativeModel initialized successfully.');
   }
@@ -79,6 +107,7 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
     _chatSession = _model!.startChat(
       history: [
         if (contextPrompt.isNotEmpty) Content.text(contextPrompt),
+        Content.text('Remember: If the user asks you to open a page, go to a section, or navigate, you MUST use the perform_app_action function.'),
       ],
     );
   }
@@ -128,6 +157,19 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
       ]);
 
       await for (final chunk in response) {
+        if (chunk.functionCalls.isNotEmpty) {
+          final call = chunk.functionCalls.first;
+          if (call.name == 'perform_app_action') {
+            final serialized = jsonEncode({
+              '__is_function_call__': true,
+              'name': call.name,
+              'args': call.args,
+            });
+            yield serialized;
+            continue;
+          }
+        }
+
         final text = chunk.text;
         if (text != null && text.isNotEmpty) {
           yield text;

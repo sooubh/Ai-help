@@ -4,10 +4,12 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_gradients.dart';
 import '../../../core/constants/app_shadows.dart';
 import '../../../core/constants/app_strings.dart';
+import '../../../core/data/therapy_modules_registry.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../services/firebase_service.dart';
 import '../../../models/child_profile_model.dart';
 import '../../activities/presentation/modules_library_screen.dart';
+import '../../activities/presentation/therapy_activity_screen.dart';
 import '../../progress/presentation/progress_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import 'package:provider/provider.dart';
@@ -15,6 +17,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../../models/recommendation_model.dart';
 import '../../../models/guidance_note_model.dart';
 import '../../../services/ai_service.dart';
+import '../../../services/permission_service.dart';
 
 /// Premium Smart Dashboard — central hub of the CARE-AI user app.
 /// Shows greeting, child summary, quick actions, today's plan,
@@ -41,6 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadChildProfile();
+    PermissionService().requestEssentialPermissions();
   }
 
   Future<void> _loadChildProfile() async {
@@ -279,6 +283,16 @@ class _DashboardTab extends StatelessWidget {
                 _buildChildSummary(context, isDark)
               else
                 _buildSetupPrompt(context, isDark),
+
+              const SizedBox(height: 24),
+
+              // ─── AI Therapy Suggestions ────────────────
+              _buildAiTherapySuggestions(context, isDark),
+
+              const SizedBox(height: 24),
+
+              // ─── Skill Progress Snapshot ───────────────
+              _buildSkillProgressSnapshot(context, isDark),
 
               const SizedBox(height: 24),
 
@@ -750,6 +764,316 @@ class _DashboardTab extends StatelessWidget {
         ),
       ),
     ).animate().fadeIn(delay: 600.ms, duration: 400.ms);
+  }
+
+  // ─── AI Therapy Suggestions ──────────────────────────────────
+  Widget _buildAiTherapySuggestions(BuildContext context, bool isDark) {
+    // Get condition-matched modules from the registry
+    final conditions = childProfile?.conditions ?? [];
+    List<dynamic> suggested = [];
+    for (final condition in conditions) {
+      suggested.addAll(TherapyModulesRegistry.forCondition(condition));
+    }
+    // Remove duplicates and limit
+    final seen = <String>{};
+    suggested = suggested.where((m) => seen.add(m.id)).toList();
+    if (suggested.isEmpty) {
+      suggested = TherapyModulesRegistry.allModules.take(6).toList();
+    }
+    suggested = suggested.take(8).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.auto_awesome_rounded,
+                color: AppColors.primary, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'AI Therapy Suggestions',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ],
+        ).animate().fadeIn(delay: 500.ms),
+        const SizedBox(height: 4),
+        Text(
+          'Personalized modules based on your child\'s profile',
+          style: Theme.of(context).textTheme.bodySmall,
+        ).animate().fadeIn(delay: 550.ms),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 165,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: suggested.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final module = suggested[index];
+              final catColor = _getCategoryColor(module.skillCategory);
+              return GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        TherapyActivityScreen(module: module, childProfile: childProfile),
+                  ),
+                ),
+                child: Container(
+                  width: 150,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        catColor.withValues(alpha: isDark ? 0.2 : 0.1),
+                        catColor.withValues(alpha: isDark ? 0.08 : 0.03),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: catColor.withValues(alpha: 0.15),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: BoxDecoration(
+                          color: catColor.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          _getCategoryIcon(module.skillCategory),
+                          color: catColor,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        module.title,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const Spacer(),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: catColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              module.skillCategory,
+                              style: TextStyle(
+                                color: catColor,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          Text(
+                            '${module.durationMinutes}m',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: isDark ? Colors.white54 : Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ).animate().fadeIn(
+                    delay: Duration(milliseconds: 550 + (index * 80)),
+                    duration: 400.ms,
+                  );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── Skill Progress Snapshot ────────────────────────────────
+  Widget _buildSkillProgressSnapshot(BuildContext context, bool isDark) {
+    final skillData = <String, double>{
+      'Communication': 0.0,
+      'Cognitive': 0.0,
+      'Memory': 0.0,
+      'Attention': 0.0,
+      'Social': 0.0,
+      'Sensory': 0.0,
+    };
+
+    return FutureBuilder<Map<String, double>>(
+      future: FirebaseService().getSkillProgress(),
+      builder: (context, snapshot) {
+        final progress = snapshot.data ?? {};
+        // Merge real data into default categories
+        for (final entry in progress.entries) {
+          final key = entry.key.length > 12
+              ? entry.key.substring(0, 12)
+              : entry.key;
+          skillData[key] = entry.value;
+        }
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: isDark
+                ? AppColors.darkCardBackground
+                : AppColors.cardBackground,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: isDark ? [] : AppShadows.soft,
+            border: isDark
+                ? Border.all(
+                    color: AppColors.darkBorder.withValues(alpha: 0.3))
+                : null,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.insights_rounded,
+                      color: AppColors.primary, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Skill Progress',
+                    style:
+                        Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ...skillData.entries.map((entry) {
+                final color = _getCategoryColor(entry.key);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment:
+                            MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            entry.key,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                          Text(
+                            '${(entry.value * 100).toInt()}%',
+                            style: TextStyle(
+                              color: color,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: entry.value,
+                          backgroundColor: color.withValues(
+                              alpha: isDark ? 0.1 : 0.08),
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(color),
+                          minHeight: 6,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        ).animate().fadeIn(delay: 650.ms, duration: 400.ms);
+      },
+    );
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category) {
+      case 'Communication':
+        return Icons.chat_bubble_rounded;
+      case 'Motor Skills':
+        return Icons.accessibility_new_rounded;
+      case 'Sensory':
+        return Icons.sensors_rounded;
+      case 'Cognitive':
+        return Icons.psychology_rounded;
+      case 'Social Skills':
+      case 'Social Interaction':
+        return Icons.groups_rounded;
+      case 'Behavioral':
+        return Icons.emoji_emotions_rounded;
+      case 'Emotional Recognition':
+        return Icons.mood_rounded;
+      case 'Memory':
+        return Icons.grid_view_rounded;
+      case 'Attention':
+        return Icons.center_focus_strong_rounded;
+      case 'Speech & Language':
+        return Icons.record_voice_over_rounded;
+      case 'Problem Solving':
+        return Icons.lightbulb_rounded;
+      default:
+        return Icons.extension_rounded;
+    }
+  }
+
+  Color _getCategoryColor(String category) {
+    switch (category) {
+      case 'Communication':
+        return AppColors.primary;
+      case 'Motor Skills':
+        return AppColors.accent;
+      case 'Sensory':
+        return AppColors.purple;
+      case 'Cognitive':
+        return const Color(0xFFF59E0B);
+      case 'Social Skills':
+      case 'Social Interaction':
+      case 'Social':
+        return const Color(0xFF10B981);
+      case 'Behavioral':
+        return AppColors.secondary;
+      case 'Emotional Recognition':
+        return const Color(0xFFEC4899);
+      case 'Memory':
+        return const Color(0xFF8B5CF6);
+      case 'Attention':
+        return const Color(0xFFEF4444);
+      case 'Speech & Language':
+        return const Color(0xFF06B6D4);
+      case 'Problem Solving':
+        return const Color(0xFFF97316);
+      default:
+        return AppColors.primary;
+    }
   }
 
   Widget _buildRecommendationsSection(BuildContext context, bool isDark) {
