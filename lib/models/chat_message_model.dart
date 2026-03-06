@@ -23,8 +23,7 @@ class ChatMessageModel {
       id: id,
       message: map['message'] ?? '',
       sender: map['sender'] ?? 'user',
-      timestamp:
-          (map['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      timestamp: (map['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 

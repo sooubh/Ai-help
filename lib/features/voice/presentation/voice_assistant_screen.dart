@@ -18,14 +18,14 @@ class VoiceAssistantScreen extends StatefulWidget {
 class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
     with TickerProviderStateMixin {
   late VoiceAssistantService _voiceService;
-  
+
   late AnimationController _breathingController;
   late AnimationController _speakingController;
   late AnimationController _entranceController;
 
   bool _isInit = false;
   bool _isMuted = false;
-  
+
   Timer? _sessionTimer;
   Duration _sessionDuration = Duration.zero;
   bool _hasStartedTimer = false;
@@ -33,17 +33,17 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
   @override
   void initState() {
     super.initState();
-    
+
     _breathingController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
-    
+
     _speakingController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..repeat();
-    
+
     _entranceController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -65,24 +65,34 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!_voiceService.isActive && mounted) {
-        await _voiceService.startLiveSession();
+        final currentRouteName =
+            ModalRoute.of(context)?.settings.name ?? 'voice_assistant';
+        final args =
+            ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
+        await _voiceService.startLiveSession(
+          childProfile: args?['childProfile'],
+          currentScreen: currentRouteName,
+        );
       }
     });
   }
 
   void _onServiceChange() {
     if (!mounted) return;
-    
+
     final status = _voiceService.session?.status;
-    
+
     if (status == VoiceStatus.listening && !_hasStartedTimer) {
       _hasStartedTimer = true;
       _startTimer();
-    } else if (status == null || status == VoiceStatus.idle || status == VoiceStatus.error) {
+    } else if (status == null ||
+        status == VoiceStatus.idle ||
+        status == VoiceStatus.error) {
       _stopTimer();
       _hasStartedTimer = false;
     }
-    
+
     setState(() {});
   }
 
@@ -113,13 +123,15 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
     _entranceController.dispose();
     super.dispose();
   }
-  
+
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     final hours = twoDigits(duration.inHours);
     final minutes = twoDigits(duration.inMinutes.remainder(60));
     final seconds = twoDigits(duration.inSeconds.remainder(60));
-    return duration.inHours > 0 ? '$hours:$minutes:$seconds' : '$minutes:$seconds';
+    return duration.inHours > 0
+        ? '$hours:$minutes:$seconds'
+        : '$minutes:$seconds';
   }
 
   @override
@@ -138,7 +150,9 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
             end: Alignment.bottomCenter,
             colors: [
               AppColors.primary.withValues(alpha: 0.05),
-              AppColors.primary.withValues(alpha: status == VoiceStatus.speaking ? 0.2 : 0.1),
+              AppColors.primary.withValues(
+                alpha: status == VoiceStatus.speaking ? 0.2 : 0.1,
+              ),
               Colors.black87,
             ],
           ),
@@ -146,53 +160,65 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
         child: SafeArea(
           child: Column(
             children: [
-              if (_voiceService.errorMessage != null)
-                _buildErrorBanner(),
-              
+              if (_voiceService.errorMessage != null) _buildErrorBanner(),
+
               const Spacer(),
-              
+
               // Animated Center Orb
               FadeTransition(
                 opacity: _entranceController,
                 child: ScaleTransition(
                   scale: Tween<double>(begin: 0.8, end: 1.0).animate(
-                    CurvedAnimation(parent: _entranceController, curve: Curves.easeOutBack)
+                    CurvedAnimation(
+                      parent: _entranceController,
+                      curve: Curves.easeOutBack,
+                    ),
                   ),
                   child: SizedBox(
                     height: 280,
                     child: Center(
-                      child: _buildCenterVisual(status, isConnected, amplitudes),
+                      child: _buildCenterVisual(
+                        status,
+                        isConnected,
+                        amplitudes,
+                      ),
                     ),
                   ),
                 ),
               ),
-              
+
               const Spacer(),
-              
+
               // 12-bar Waveform
               _build12BarWaveform(amplitudes, status),
-              
+
               const SizedBox(height: 32),
-              
+
               // Status Badge & Hint
               FadeTransition(
                 opacity: _entranceController,
                 child: _buildStatusSection(status, isConnected),
               ),
-              
+
               const SizedBox(height: 48),
-              
+
               // Controls Row
               SlideTransition(
-                position: Tween<Offset>(begin: const Offset(0, 0.5), end: Offset.zero).animate(
-                  CurvedAnimation(parent: _entranceController, curve: Curves.easeOutQuad)
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.5),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: _entranceController,
+                    curve: Curves.easeOutQuad,
+                  ),
                 ),
                 child: FadeTransition(
                   opacity: _entranceController,
                   child: _buildControls(status),
                 ),
               ),
-              
+
               const SizedBox(height: 40),
             ],
           ),
@@ -207,9 +233,13 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
       elevation: 0,
       centerTitle: true,
       leading: IconButton(
-        icon: const Icon(Icons.close_rounded, color: Colors.white),
+        icon: const Icon(
+          Icons.keyboard_arrow_down_rounded,
+          color: Colors.white,
+          size: 32,
+        ),
         onPressed: () {
-          _voiceService.stopSession();
+          // Do not stop the session, simply pop back
           Navigator.of(context).pop();
         },
       ),
@@ -275,17 +305,22 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
     );
   }
 
-  Widget _buildCenterVisual(VoiceStatus status, bool isConnected, List<double> amplitudes) {
+  Widget _buildCenterVisual(
+    VoiceStatus status,
+    bool isConnected,
+    List<double> amplitudes,
+  ) {
     return AnimatedBuilder(
       animation: Listenable.merge([_breathingController, _speakingController]),
       builder: (context, child) {
         double baseScale = 1.0;
         double currentAmp = 0.0;
         if (amplitudes.isNotEmpty) currentAmp = amplitudes.last;
-        
+
         if (!isConnected || status == VoiceStatus.idle) {
           baseScale = 0.95 + (_breathingController.value * 0.1);
-        } else if (status == VoiceStatus.listening || status == VoiceStatus.processing) {
+        } else if (status == VoiceStatus.listening ||
+            status == VoiceStatus.processing) {
           // Subtle reaction to mic input on the center orb itself
           baseScale = 1.0 + (currentAmp * 0.15);
         }
@@ -293,85 +328,89 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
         return Stack(
           alignment: Alignment.center,
           children: [
-             // Expanding rings when speaking (Outward pulses)
-             if (status == VoiceStatus.speaking)
-               ...List.generate(3, (index) {
-                 final delay = index * 0.33;
-                 double progress = (_speakingController.value + delay) % 1.0;
-                 final ringScale = 1.0 + (progress * 1.5);
-                 final ringOpacity = (1.0 - progress).clamp(0.0, 1.0) * 0.5;
-                 
-                 return Transform.scale(
-                   scale: ringScale,
-                   child: Container(
-                     width: 140,
-                     height: 140,
-                     decoration: BoxDecoration(
-                       shape: BoxShape.circle,
-                       border: Border.all(
-                         color: AppColors.primary.withValues(alpha: ringOpacity),
-                         width: 2,
-                       ),
-                     ),
-                   ),
-                 );
-               }),
+            // Expanding rings when speaking (Outward pulses)
+            if (status == VoiceStatus.speaking)
+              ...List.generate(3, (index) {
+                final delay = index * 0.33;
+                double progress = (_speakingController.value + delay) % 1.0;
+                final ringScale = 1.0 + (progress * 1.5);
+                final ringOpacity = (1.0 - progress).clamp(0.0, 1.0) * 0.5;
 
-             // Concentric rings reacting to pitch when listening
-             if (status == VoiceStatus.listening || status == VoiceStatus.processing)
-               ...List.generate(3, (index) {
-                 // The rings map current amplitude based on their index
-                 final ringScale = 1.0 + (index * 0.15) + (currentAmp * 0.3 * (index + 1));
-                 final ringOpacity = (0.3 - (index * 0.08)).clamp(0.0, 1.0);
-                 return AnimatedContainer(
-                   duration: const Duration(milliseconds: 100),
-                   width: 140 * ringScale,
-                   height: 140 * ringScale,
-                   decoration: BoxDecoration(
-                     shape: BoxShape.circle,
-                     border: Border.all(
-                       color: AppColors.primary.withValues(alpha: ringOpacity),
-                       width: 1.5,
-                     ),
-                   ),
-                 );
-               }),
+                return Transform.scale(
+                  scale: ringScale,
+                  child: Container(
+                    width: 140,
+                    height: 140,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: ringOpacity),
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                );
+              }),
 
-             // Center base orb
-             Transform.scale(
-               scale: baseScale,
-               child: Container(
-                 width: 140,
-                 height: 140,
-                 decoration: BoxDecoration(
-                   shape: BoxShape.circle,
-                   gradient: RadialGradient(
-                     colors: [
-                       status == VoiceStatus.speaking 
-                           ? AppColors.primary.withValues(alpha: 0.9)
-                           : AppColors.primary.withValues(alpha: 0.5),
-                       AppColors.primary.withValues(alpha: 0.1),
-                     ],
-                   ),
-                   boxShadow: [
-                     BoxShadow(
-                       color: AppColors.primary.withValues(alpha: status == VoiceStatus.speaking ? 0.6 : 0.3),
-                       blurRadius: status == VoiceStatus.speaking ? 40 : 20,
-                       spreadRadius: status == VoiceStatus.speaking ? 15 : 5,
-                     )
-                   ],
-                 ),
-                 child: Center(
-                   child: Icon(
-                     status == VoiceStatus.speaking 
-                        ? Icons.graphic_eq_rounded 
+            // Concentric rings reacting to pitch when listening
+            if (status == VoiceStatus.listening ||
+                status == VoiceStatus.processing)
+              ...List.generate(3, (index) {
+                // The rings map current amplitude based on their index
+                final ringScale =
+                    1.0 + (index * 0.15) + (currentAmp * 0.3 * (index + 1));
+                final ringOpacity = (0.3 - (index * 0.08)).clamp(0.0, 1.0);
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 100),
+                  width: 140 * ringScale,
+                  height: 140 * ringScale,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: ringOpacity),
+                      width: 1.5,
+                    ),
+                  ),
+                );
+              }),
+
+            // Center base orb
+            Transform.scale(
+              scale: baseScale,
+              child: Container(
+                width: 140,
+                height: 140,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      status == VoiceStatus.speaking
+                          ? AppColors.primary.withValues(alpha: 0.9)
+                          : AppColors.primary.withValues(alpha: 0.5),
+                      AppColors.primary.withValues(alpha: 0.1),
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(
+                        alpha: status == VoiceStatus.speaking ? 0.6 : 0.3,
+                      ),
+                      blurRadius: status == VoiceStatus.speaking ? 40 : 20,
+                      spreadRadius: status == VoiceStatus.speaking ? 15 : 5,
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Icon(
+                    status == VoiceStatus.speaking
+                        ? Icons.graphic_eq_rounded
                         : Icons.psychology_rounded,
-                     size: 56,
-                     color: Colors.white.withValues(alpha: 0.9),
-                   ),
-                 ),
-               ),
-             ),
+                    size: 56,
+                    color: Colors.white.withValues(alpha: 0.9),
+                  ),
+                ),
+              ),
+            ),
           ],
         );
       },
@@ -383,7 +422,7 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
     final Color barColor = isSpeaking ? AppColors.primary : Colors.white;
     // Mute visual override
     final bool showMuted = _isMuted && !isSpeaking;
-    
+
     return RepaintBoundary(
       child: SizedBox(
         height: 60,
@@ -396,23 +435,37 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
               children: List.generate(12, (index) {
                 // Natural waveform bell curve shape
                 final double distanceFromCenter = (index - 5.5).abs();
-                final double positionScale = math.max(0.1, 1.0 - (distanceFromCenter * 0.15));
-                
+                final double positionScale = math.max(
+                  0.1,
+                  1.0 - (distanceFromCenter * 0.15),
+                );
+
                 double amp = 0.05;
                 if (showMuted) {
                   amp = 0.05; // flatline
                 } else if (isSpeaking) {
                   // Generate an artificial smooth waveform for the AI voice using sine waves
-                  amp = 0.3 + 0.5 * math.max(0, math.sin((_speakingController.value * math.pi * 6) + index));
+                  amp =
+                      0.3 +
+                      0.5 *
+                          math.max(
+                            0,
+                            math.sin(
+                              (_speakingController.value * math.pi * 6) + index,
+                            ),
+                          );
                 } else if (amplitudes.isNotEmpty) {
                   // Real mic amplitude based on history index
-                  int historyIndex = amplitudes.length > index ? amplitudes.length - 1 - index : 0;
+                  int historyIndex =
+                      amplitudes.length > index
+                          ? amplitudes.length - 1 - index
+                          : 0;
                   amp = amplitudes[historyIndex];
                 }
-                
+
                 amp = amp.clamp(0.05, 1.0);
                 final double barHeight = 10 + (amp * 50 * positionScale);
-                
+
                 return AnimatedContainer(
                   duration: const Duration(milliseconds: 100),
                   margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -425,7 +478,7 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
                 );
               }),
             );
-          }
+          },
         ),
       ),
     );
@@ -435,7 +488,7 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
     Color pillColor;
     IconData pillIcon;
     String pillText;
-    
+
     if (!isConnected) {
       pillColor = Colors.grey.shade400;
       pillIcon = Icons.hourglass_empty_rounded;
@@ -515,7 +568,9 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 300),
           child: Text(
-            _isMuted ? "Tap the mic icon to resume" : "Speak naturally — I'm here to help",
+            _isMuted
+                ? "Tap the mic icon to resume"
+                : "Speak naturally — I'm here to help",
             key: ValueKey<bool>(_isMuted),
             style: const TextStyle(
               color: Colors.white54,
@@ -540,8 +595,8 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
             HapticFeedback.lightImpact();
             setState(() {
               _isMuted = !_isMuted;
-              // Note: Strictly to modify UI appearance as requested. 
-              // True muting of microphone chunk sending would require 
+              // Note: Strictly to modify UI appearance as requested.
+              // True muting of microphone chunk sending would require
               // modifying voice_assistant_service.dart, which is forbidden by rules.
             });
           },
@@ -564,9 +619,9 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
             ),
           ),
         ),
-        
+
         const SizedBox(width: 32),
-        
+
         // END CALL BUTTON
         GestureDetector(
           onTap: () {
@@ -585,15 +640,19 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
                   color: Colors.redAccent.withValues(alpha: 0.4),
                   blurRadius: 20,
                   spreadRadius: 2,
-                )
+                ),
               ],
             ),
-            child: const Icon(Icons.call_end_rounded, color: Colors.white, size: 36),
+            child: const Icon(
+              Icons.call_end_rounded,
+              color: Colors.white,
+              size: 36,
+            ),
           ),
         ),
-        
+
         const SizedBox(width: 32),
-        
+
         // INTERRUPT BUTTON
         AnimatedOpacity(
           duration: const Duration(milliseconds: 200),
@@ -612,7 +671,11 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white54, width: 2),
                 ),
-                child: const Icon(Icons.stop_rounded, color: Colors.white, size: 26),
+                child: const Icon(
+                  Icons.stop_rounded,
+                  color: Colors.white,
+                  size: 26,
+                ),
               ),
             ),
           ),

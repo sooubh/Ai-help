@@ -63,8 +63,7 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
       safetySettings: [
         SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium),
         SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.medium),
-        SafetySetting(
-            HarmCategory.sexuallyExplicit, HarmBlockThreshold.high),
+        SafetySetting(HarmCategory.sexuallyExplicit, HarmBlockThreshold.high),
         SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.medium),
       ],
       tools: [
@@ -82,18 +81,20 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
                   ),
                   'target': Schema(
                     SchemaType.string,
-                    description: 'The target destination. Allowed values: home, dashboard, wellness, daily_plan, games, emergency.',
+                    description:
+                        'The target destination. Allowed values: home, dashboard, wellness, daily_plan, games, emergency.',
                   ),
                   'message': Schema(
                     SchemaType.string,
-                    description: 'A brief verbal confirmation to speak to the user before navigating (e.g., "Taking you to the games hub.").',
+                    description:
+                        'A brief verbal confirmation to speak to the user before navigating (e.g., "Taking you to the games hub.").',
                   ),
                 },
                 requiredProperties: ['action', 'target', 'message'],
               ),
             ),
           ],
-        )
+        ),
       ],
     );
     print('GenerativeModel initialized successfully.');
@@ -108,7 +109,9 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
     _chatSession = _model!.startChat(
       history: [
         if (contextPrompt.isNotEmpty) Content.text(contextPrompt),
-        Content.text('Remember: If the user asks you to open a page, go to a section, or navigate, you MUST use the perform_app_action function.'),
+        Content.text(
+          'Remember: If the user asks you to open a page, go to a section, or navigate, you MUST use the perform_app_action function.',
+        ),
       ],
     );
   }
@@ -119,28 +122,36 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
     if (_model == null) {
       return _getFallbackResponse(userMessage);
     }
-    
+
     if (_chatSession == null) {
       startChatSession();
     }
-    
+
     if (_chatSession == null) {
       return _getFallbackResponse(userMessage);
     }
 
     try {
-      final response = await _chatSession!.sendMessage(
-        Content.text(userMessage),
-      ).timeout(const Duration(seconds: 15));
+      final response = await _chatSession!
+          .sendMessage(Content.text(userMessage))
+          .timeout(const Duration(seconds: 15));
 
       final text = response.text;
       if (text == null || text.isEmpty) {
-        AppLogger.warning('AiService.getResponse', 'Received empty text from Gemini. Using gentle prompt.');
+        AppLogger.warning(
+          'AiService.getResponse',
+          'Received empty text from Gemini. Using gentle prompt.',
+        );
         return 'I understand your question. Could you please provide more details so I can give you better guidance?';
       }
       return text;
     } catch (e, stack) {
-      AppLogger.error('AiService.getResponse', 'Gemini API call failed', e, stack);
+      AppLogger.error(
+        'AiService.getResponse',
+        'Gemini API call failed',
+        e,
+        stack,
+      );
       return _getFallbackResponse(userMessage);
     }
   }
@@ -182,7 +193,9 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
   }
 
   /// Generate personalized recommendations based on child profile.
-  Future<List<RecommendationModel>> getRecommendations(ChildProfileModel profile) async {
+  Future<List<RecommendationModel>> getRecommendations(
+    ChildProfileModel profile,
+  ) async {
     if (_model == null) {
       return _getDefaultRecommendations(profile);
     }
@@ -209,22 +222,31 @@ Each object must have exactly these keys:
 ''';
 
     try {
-      final response = await _model!.generateContent([Content.text(prompt)])
+      final response = await _model!
+          .generateContent([Content.text(prompt)])
           .timeout(const Duration(seconds: 20));
-      
+
       String jsonStr = response.text?.trim() ?? '';
-      
+
       // Cleanup markdown artifacts if present
       if (jsonStr.startsWith('```json')) {
-        jsonStr = jsonStr.replaceAll('```json', '').replaceAll('```', '').trim();
+        jsonStr =
+            jsonStr.replaceAll('```json', '').replaceAll('```', '').trim();
       } else if (jsonStr.startsWith('```')) {
         jsonStr = jsonStr.replaceAll('```', '').trim();
       }
 
       final List<dynamic> parsed = json.decode(jsonStr);
-      return parsed.map((e) => RecommendationModel.fromMap(e as Map<String, dynamic>)).toList();
+      return parsed
+          .map((e) => RecommendationModel.fromMap(e as Map<String, dynamic>))
+          .toList();
     } catch (e, stack) {
-      AppLogger.error('AiService.getRecommendations', 'Failed to generate recommendations', e, stack);
+      AppLogger.error(
+        'AiService.getRecommendations',
+        'Failed to generate recommendations',
+        e,
+        stack,
+      );
       return _getDefaultRecommendations(profile);
     }
   }
@@ -300,7 +322,9 @@ Tailor all advice and activities to this child's specific needs and abilities.
   }
 
   /// Default recommendations when AI is unavailable.
-  List<RecommendationModel> _getDefaultRecommendations(ChildProfileModel profile) {
+  List<RecommendationModel> _getDefaultRecommendations(
+    ChildProfileModel profile,
+  ) {
     return [
       RecommendationModel(
         title: 'Sensory Play Time',

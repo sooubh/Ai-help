@@ -7,13 +7,13 @@ void main() {
   test('Test AiService Response', () async {
     await dotenv.load(fileName: ".env");
     EnvConfig.validate();
-    
+
     final aiService = AiService();
     aiService.initialize();
-    
+
     final response = await aiService.getResponse("Hello");
     print('Response: $response');
-    
+
     expect(response, isNotEmpty);
   });
 }

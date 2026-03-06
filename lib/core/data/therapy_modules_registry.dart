@@ -25,7 +25,8 @@ class TherapyModulesRegistry {
         'Gradually increase the number of cards and introduce action cards.',
       ],
       durationMinutes: 15,
-      expectedOutcomes: 'Child can independently exchange 3-5 picture cards to request items.',
+      expectedOutcomes:
+          'Child can independently exchange 3-5 picture cards to request items.',
       targetSkills: ['requesting', 'expressing_needs', 'choice_making'],
       activityType: 'interactive',
       iconName: 'image',
@@ -33,7 +34,8 @@ class TherapyModulesRegistry {
     TherapyModuleModel(
       id: 'comm_02',
       title: 'Story Sequencing',
-      objective: 'Arrange story events in the correct order to build narrative skills',
+      objective:
+          'Arrange story events in the correct order to build narrative skills',
       conditionTypes: ['ASD', 'Speech Delay', 'Learning Disability'],
       ageRange: '4-10',
       skillCategory: 'Communication',
@@ -47,7 +49,8 @@ class TherapyModulesRegistry {
         'Praise correct sequences and gently correct mistakes by narrating the story together.',
       ],
       durationMinutes: 15,
-      expectedOutcomes: 'Child can correctly sequence a 4-panel story and narrate it.',
+      expectedOutcomes:
+          'Child can correctly sequence a 4-panel story and narrate it.',
       targetSkills: ['narrative_skills', 'sequencing', 'vocabulary'],
       activityType: 'interactive',
       iconName: 'auto_stories',
@@ -69,7 +72,8 @@ class TherapyModulesRegistry {
         'Praise the child for listening, waiting their turn, and asking questions.',
       ],
       durationMinutes: 15,
-      expectedOutcomes: 'Child can maintain a 3-turn conversation on a given topic.',
+      expectedOutcomes:
+          'Child can maintain a 3-turn conversation on a given topic.',
       targetSkills: ['turn_taking', 'topic_maintenance', 'listening'],
       activityType: 'interactive',
       iconName: 'forum',
@@ -91,8 +95,13 @@ class TherapyModulesRegistry {
         'Take turns — let the child hide an object for you to describe and guess.',
       ],
       durationMinutes: 12,
-      expectedOutcomes: 'Child uses at least 3 descriptive words to describe objects.',
-      targetSkills: ['vocabulary', 'descriptive_language', 'sensory_integration'],
+      expectedOutcomes:
+          'Child uses at least 3 descriptive words to describe objects.',
+      targetSkills: [
+        'vocabulary',
+        'descriptive_language',
+        'sensory_integration',
+      ],
       activityType: 'interactive',
       iconName: 'help_outline',
     ),
@@ -104,7 +113,10 @@ class TherapyModulesRegistry {
       ageRange: '5-12',
       skillCategory: 'Communication',
       difficultyLevel: 3,
-      materials: ['Question word cards (Who, What, Where, When, Why)', 'Picture scenes'],
+      materials: [
+        'Question word cards (Who, What, Where, When, Why)',
+        'Picture scenes',
+      ],
       instructions: [
         'Show the child a detailed picture scene (e.g., a park, a classroom).',
         'Present question word cards and explain each one.',
@@ -113,7 +125,8 @@ class TherapyModulesRegistry {
         'Answer their question, then encourage them to ask another using a different word.',
       ],
       durationMinutes: 15,
-      expectedOutcomes: 'Child can form questions using at least 3 different question words.',
+      expectedOutcomes:
+          'Child can form questions using at least 3 different question words.',
       targetSkills: ['question_formation', 'curiosity', 'grammar'],
       activityType: 'interactive',
       iconName: 'quiz',
@@ -137,8 +150,13 @@ class TherapyModulesRegistry {
         'Ask: "When do YOU feel happy/sad/angry?" to connect emotions to experiences.',
       ],
       durationMinutes: 12,
-      expectedOutcomes: 'Child can correctly identify 5 basic emotions from facial expressions.',
-      targetSkills: ['emotion_identification', 'facial_reading', 'self_awareness'],
+      expectedOutcomes:
+          'Child can correctly identify 5 basic emotions from facial expressions.',
+      targetSkills: [
+        'emotion_identification',
+        'facial_reading',
+        'self_awareness',
+      ],
       activityType: 'interactive',
       iconName: 'mood',
     ),
@@ -159,8 +177,13 @@ class TherapyModulesRegistry {
         'Practice calming strategies: deep breaths for high temperatures, celebrating for happy.',
       ],
       durationMinutes: 15,
-      expectedOutcomes: 'Child can rate emotional intensity and suggest a coping strategy.',
-      targetSkills: ['emotion_regulation', 'self_awareness', 'coping_strategies'],
+      expectedOutcomes:
+          'Child can rate emotional intensity and suggest a coping strategy.',
+      targetSkills: [
+        'emotion_regulation',
+        'self_awareness',
+        'coping_strategies',
+      ],
       activityType: 'interactive',
       iconName: 'thermostat',
     ),
@@ -181,8 +204,13 @@ class TherapyModulesRegistry {
         'End the story with: "To feel better, I can ___" and help them fill in a coping strategy.',
       ],
       durationMinutes: 18,
-      expectedOutcomes: 'Child can create a simple cause-and-effect narrative linking events to feelings.',
-      targetSkills: ['emotional_awareness', 'narrative_skills', 'coping_strategies'],
+      expectedOutcomes:
+          'Child can create a simple cause-and-effect narrative linking events to feelings.',
+      targetSkills: [
+        'emotional_awareness',
+        'narrative_skills',
+        'coping_strategies',
+      ],
       activityType: 'guided',
       iconName: 'menu_book',
     ),
@@ -205,7 +233,8 @@ class TherapyModulesRegistry {
         'Celebrate correct answers and gently guide incorrect ones.',
       ],
       durationMinutes: 10,
-      expectedOutcomes: 'Child can identify the odd item and explain why in simple terms.',
+      expectedOutcomes:
+          'Child can identify the odd item and explain why in simple terms.',
       targetSkills: ['categorization', 'logical_thinking', 'reasoning'],
       activityType: 'interactive',
       iconName: 'filter_alt',
@@ -249,7 +278,8 @@ class TherapyModulesRegistry {
         'Increase challenge by using less obvious categories (things that are cold vs. hot).',
       ],
       durationMinutes: 12,
-      expectedOutcomes: 'Child can sort 10+ items into 3 categories with minimal help.',
+      expectedOutcomes:
+          'Child can sort 10+ items into 3 categories with minimal help.',
       targetSkills: ['classification', 'grouping', 'vocabulary'],
       activityType: 'interactive',
       iconName: 'category',
@@ -257,7 +287,8 @@ class TherapyModulesRegistry {
     TherapyModuleModel(
       id: 'cog_04',
       title: 'Cause & Effect',
-      objective: 'Understand what happens and why through cause-effect scenarios',
+      objective:
+          'Understand what happens and why through cause-effect scenarios',
       conditionTypes: ['ASD', 'ADHD', 'Learning Disability'],
       ageRange: '5-12',
       skillCategory: 'Cognitive',
@@ -317,7 +348,8 @@ class TherapyModulesRegistry {
         'Increase to 4-5 items as the child improves.',
       ],
       durationMinutes: 12,
-      expectedOutcomes: 'Child can remember and retrieve 3-4 items from a spoken list.',
+      expectedOutcomes:
+          'Child can remember and retrieve 3-4 items from a spoken list.',
       targetSkills: ['working_memory', 'listening', 'following_instructions'],
       activityType: 'interactive',
       iconName: 'shopping_cart',
@@ -339,7 +371,8 @@ class TherapyModulesRegistry {
         'Praise any details remembered and gradually reduce prompts over sessions.',
       ],
       durationMinutes: 15,
-      expectedOutcomes: 'Child can retell the main idea and 2-3 details of a short story.',
+      expectedOutcomes:
+          'Child can retell the main idea and 2-3 details of a short story.',
       targetSkills: ['long_term_recall', 'comprehension', 'narrative_skills'],
       activityType: 'guided',
       iconName: 'auto_stories',
@@ -363,7 +396,8 @@ class TherapyModulesRegistry {
         'Increase to 5+ differences with subtler changes as skills improve.',
       ],
       durationMinutes: 10,
-      expectedOutcomes: 'Child can find 3+ differences in a picture pair within 2 minutes.',
+      expectedOutcomes:
+          'Child can find 3+ differences in a picture pair within 2 minutes.',
       targetSkills: ['visual_attention', 'focus', 'detail_observation'],
       activityType: 'interactive',
       iconName: 'find_in_page',
@@ -393,7 +427,8 @@ class TherapyModulesRegistry {
     TherapyModuleModel(
       id: 'att_03',
       title: 'Color Word Challenge',
-      objective: 'Practice selective attention with a Stroop-style color/word task',
+      objective:
+          'Practice selective attention with a Stroop-style color/word task',
       conditionTypes: ['ADHD', 'ASD'],
       ageRange: '6-12',
       skillCategory: 'Attention',
@@ -407,8 +442,13 @@ class TherapyModulesRegistry {
         'Track how many the child gets correct in 30 seconds each session.',
       ],
       durationMinutes: 10,
-      expectedOutcomes: 'Child can correctly identify 8+ ink colors in 30 seconds.',
-      targetSkills: ['selective_attention', 'inhibitory_control', 'processing_speed'],
+      expectedOutcomes:
+          'Child can correctly identify 8+ ink colors in 30 seconds.',
+      targetSkills: [
+        'selective_attention',
+        'inhibitory_control',
+        'processing_speed',
+      ],
       activityType: 'game',
       iconName: 'palette',
     ),
@@ -431,7 +471,8 @@ class TherapyModulesRegistry {
         'Practice different greetings: morning, afternoon, saying goodbye.',
       ],
       durationMinutes: 10,
-      expectedOutcomes: 'Child can independently greet someone with a wave and verbal hello.',
+      expectedOutcomes:
+          'Child can independently greet someone with a wave and verbal hello.',
       targetSkills: ['social_initiation', 'eye_contact', 'verbal_greeting'],
       activityType: 'interactive',
       iconName: 'waving_hand',
@@ -461,7 +502,8 @@ class TherapyModulesRegistry {
     TherapyModuleModel(
       id: 'soc_03',
       title: 'Role Play Scenarios',
-      objective: 'Act out social situations to build empathy and perspective-taking',
+      objective:
+          'Act out social situations to build empathy and perspective-taking',
       conditionTypes: ['ASD', 'Social Anxiety'],
       ageRange: '5-12',
       skillCategory: 'Social Interaction',
@@ -475,7 +517,8 @@ class TherapyModulesRegistry {
         'Discuss: "Why did the friend feel sad? What made them feel better?"',
       ],
       durationMinutes: 15,
-      expectedOutcomes: 'Child can identify another person\'s feelings and suggest an appropriate response.',
+      expectedOutcomes:
+          'Child can identify another person\'s feelings and suggest an appropriate response.',
       targetSkills: ['perspective_taking', 'empathy', 'social_problem_solving'],
       activityType: 'interactive',
       iconName: 'theater_comedy',
@@ -521,8 +564,13 @@ class TherapyModulesRegistry {
         'Sing simple nursery rhymes together, pausing for the child to fill in the rhyming word.',
       ],
       durationMinutes: 12,
-      expectedOutcomes: 'Child can identify rhyming pairs and generate 2-3 rhymes.',
-      targetSkills: ['phonological_awareness', 'auditory_discrimination', 'vocabulary'],
+      expectedOutcomes:
+          'Child can identify rhyming pairs and generate 2-3 rhymes.',
+      targetSkills: [
+        'phonological_awareness',
+        'auditory_discrimination',
+        'vocabulary',
+      ],
       activityType: 'interactive',
       iconName: 'music_note',
     ),
@@ -543,7 +591,8 @@ class TherapyModulesRegistry {
         'Add adjective cards (big, red, happy) to make sentences longer and more descriptive.',
       ],
       durationMinutes: 15,
-      expectedOutcomes: 'Child can construct 3+ word sentences with subject-verb-object structure.',
+      expectedOutcomes:
+          'Child can construct 3+ word sentences with subject-verb-object structure.',
       targetSkills: ['syntax', 'grammar', 'sentence_formation'],
       activityType: 'interactive',
       iconName: 'text_fields',
@@ -575,7 +624,8 @@ class TherapyModulesRegistry {
     TherapyModuleModel(
       id: 'prob_02',
       title: 'What Would You Do?',
-      objective: 'Practice decision-making and safety awareness through scenarios',
+      objective:
+          'Practice decision-making and safety awareness through scenarios',
       conditionTypes: ['ASD', 'ADHD', 'Down Syndrome'],
       ageRange: '4-12',
       skillCategory: 'Problem Solving',
@@ -589,8 +639,13 @@ class TherapyModulesRegistry {
         'Role-play the correct response together.',
       ],
       durationMinutes: 12,
-      expectedOutcomes: 'Child can identify the safest response in 3+ common scenarios.',
-      targetSkills: ['decision_making', 'safety_awareness', 'critical_thinking'],
+      expectedOutcomes:
+          'Child can identify the safest response in 3+ common scenarios.',
+      targetSkills: [
+        'decision_making',
+        'safety_awareness',
+        'critical_thinking',
+      ],
       activityType: 'interactive',
       iconName: 'psychology',
     ),
@@ -611,7 +666,8 @@ class TherapyModulesRegistry {
         'Increase maze complexity as the child succeeds.',
       ],
       durationMinutes: 10,
-      expectedOutcomes: 'Child can complete a medium-complexity maze independently.',
+      expectedOutcomes:
+          'Child can complete a medium-complexity maze independently.',
       targetSkills: ['planning', 'sequential_thinking', 'fine_motor'],
       activityType: 'interactive',
       iconName: 'route',
@@ -621,12 +677,15 @@ class TherapyModulesRegistry {
     TherapyModuleModel(
       id: 'sen_01',
       title: 'Texture Explorer',
-      objective: 'Explore different textures to develop tactile processing skills',
+      objective:
+          'Explore different textures to develop tactile processing skills',
       conditionTypes: ['ASD', 'Sensory Processing Disorder'],
       ageRange: '2-8',
       skillCategory: 'Sensory',
       difficultyLevel: 1,
-      materials: ['Texture board or bag with: sandpaper, cotton, silk, sponge, foil'],
+      materials: [
+        'Texture board or bag with: sandpaper, cotton, silk, sponge, foil',
+      ],
       instructions: [
         'Present textures one at a time. Let the child touch at their own comfort level.',
         'Name each texture: "This one is rough. This one is soft."',
@@ -635,7 +694,8 @@ class TherapyModulesRegistry {
         'Gently introduce less preferred textures with an "I can try" approach.',
       ],
       durationMinutes: 10,
-      expectedOutcomes: 'Child can tolerate touching 4+ textures and name 3 descriptions.',
+      expectedOutcomes:
+          'Child can tolerate touching 4+ textures and name 3 descriptions.',
       targetSkills: ['tactile_processing', 'sensory_tolerance', 'vocabulary'],
       activityType: 'guided',
       iconName: 'touch_app',
@@ -643,12 +703,16 @@ class TherapyModulesRegistry {
     TherapyModuleModel(
       id: 'sen_02',
       title: 'Sound Sorting',
-      objective: 'Discriminate between different sounds and match them to sources',
+      objective:
+          'Discriminate between different sounds and match them to sources',
       conditionTypes: ['ASD', 'Sensory Processing Disorder', 'ADHD'],
       ageRange: '3-9',
       skillCategory: 'Sensory',
       difficultyLevel: 2,
-      materials: ['Sound recordings or instruments', 'Picture cards of sources'],
+      materials: [
+        'Sound recordings or instruments',
+        'Picture cards of sources',
+      ],
       instructions: [
         'Play a sound (e.g., a dog barking) and show 3 picture cards.',
         'Ask: "Which picture makes this sound?"',
@@ -657,7 +721,8 @@ class TherapyModulesRegistry {
         'Create a sound sorting game: loud vs. quiet, high vs. low.',
       ],
       durationMinutes: 12,
-      expectedOutcomes: 'Child can match 5+ sounds to their sources and sort by volume.',
+      expectedOutcomes:
+          'Child can match 5+ sounds to their sources and sort by volume.',
       targetSkills: ['auditory_discrimination', 'listening', 'categorization'],
       activityType: 'interactive',
       iconName: 'hearing',
@@ -665,12 +730,18 @@ class TherapyModulesRegistry {
     TherapyModuleModel(
       id: 'sen_03',
       title: 'Calm Down Toolkit',
-      objective: 'Learn and practice self-regulation techniques using sensory tools',
+      objective:
+          'Learn and practice self-regulation techniques using sensory tools',
       conditionTypes: ['ASD', 'ADHD', 'Anxiety', 'Sensory Processing Disorder'],
       ageRange: '3-12',
       skillCategory: 'Sensory',
       difficultyLevel: 2,
-      materials: ['Stress ball', 'Weighted lap pad', 'Noise-canceling headphones', 'Calm-down jar'],
+      materials: [
+        'Stress ball',
+        'Weighted lap pad',
+        'Noise-canceling headphones',
+        'Calm-down jar',
+      ],
       instructions: [
         'Introduce the calm-down toolkit: "These are tools that can help when you feel upset or overwhelmed."',
         'Demonstrate each tool: squeeze the stress ball, rest with the weighted pad, shake the calm-down jar.',
@@ -679,8 +750,13 @@ class TherapyModulesRegistry {
         'Create a visual "When I feel upset, I can…" chart together with the child\'s preferred tools.',
       ],
       durationMinutes: 15,
-      expectedOutcomes: 'Child can independently select and use a calming tool when prompted.',
-      targetSkills: ['self_regulation', 'sensory_coping', 'emotional_awareness'],
+      expectedOutcomes:
+          'Child can independently select and use a calming tool when prompted.',
+      targetSkills: [
+        'self_regulation',
+        'sensory_coping',
+        'emotional_awareness',
+      ],
       activityType: 'guided',
       iconName: 'self_improvement',
     ),
@@ -706,8 +782,11 @@ class TherapyModulesRegistry {
   /// Get modules appropriate for a given condition.
   static List<TherapyModuleModel> forCondition(String condition) =>
       allModules
-          .where((m) => m.conditionTypes
-              .any((c) => c.toLowerCase() == condition.toLowerCase()))
+          .where(
+            (m) => m.conditionTypes.any(
+              (c) => c.toLowerCase() == condition.toLowerCase(),
+            ),
+          )
           .toList();
 
   /// Get all module IDs.

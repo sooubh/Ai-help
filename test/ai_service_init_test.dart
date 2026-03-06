@@ -7,12 +7,12 @@ void main() {
   test('Initialize AiService', () async {
     await dotenv.load(fileName: ".env");
     print('Testing AiService initialization...');
-    
+
     EnvConfig.validate();
-    
+
     final aiService = AiService();
     aiService.initialize();
-    
+
     expect(EnvConfig.hasGeminiKey, isTrue);
   });
 }

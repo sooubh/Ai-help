@@ -18,24 +18,42 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
   int _breathingCycles = 0;
 
   static const _steps = [
-    _CalmingStep('🫂', 'You Are Not Alone',
-        'Take a moment. This is temporary. You and your child will get through this.',
-        Color(0xFF5B6EF5)),
-    _CalmingStep('🔇', 'Reduce Stimulation',
-        'Turn off loud sounds. Dim lights if possible. Move to a quieter space.',
-        Color(0xFF8B5CF6)),
-    _CalmingStep('🧘', 'Breathe Together',
-        'Use the breathing exercise below. Breathe slowly and calmly near your child.',
-        Color(0xFF2DD4A8)),
-    _CalmingStep('🗣️', 'Speak Softly',
-        'Use a calm, low voice. Say: "I\'m here. You\'re safe. It\'s okay."',
-        Color(0xFFF59E0B)),
-    _CalmingStep('⏰', 'Wait Patiently',
-        'Stay nearby. Don\'t force eye contact or touch. Let them process.',
-        Color(0xFFEC4899)),
-    _CalmingStep('💛', 'After It Passes',
-        'Offer comfort. A gentle hug, favorite blanket, or familiar object.',
-        Color(0xFF10B981)),
+    _CalmingStep(
+      '🫂',
+      'You Are Not Alone',
+      'Take a moment. This is temporary. You and your child will get through this.',
+      Color(0xFF5B6EF5),
+    ),
+    _CalmingStep(
+      '🔇',
+      'Reduce Stimulation',
+      'Turn off loud sounds. Dim lights if possible. Move to a quieter space.',
+      Color(0xFF8B5CF6),
+    ),
+    _CalmingStep(
+      '🧘',
+      'Breathe Together',
+      'Use the breathing exercise below. Breathe slowly and calmly near your child.',
+      Color(0xFF2DD4A8),
+    ),
+    _CalmingStep(
+      '🗣️',
+      'Speak Softly',
+      'Use a calm, low voice. Say: "I\'m here. You\'re safe. It\'s okay."',
+      Color(0xFFF59E0B),
+    ),
+    _CalmingStep(
+      '⏰',
+      'Wait Patiently',
+      'Stay nearby. Don\'t force eye contact or touch. Let them process.',
+      Color(0xFFEC4899),
+    ),
+    _CalmingStep(
+      '💛',
+      'After It Passes',
+      'Offer comfort. A gentle hug, favorite blanket, or familiar object.',
+      Color(0xFF10B981),
+    ),
   ];
 
   @override
@@ -79,14 +97,20 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                 children: [
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded,
-                        color: Colors.white, size: 28),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: Colors.white,
+                      size: 28,
+                    ),
                   ),
                   const Spacer(),
-                  Text('${_currentStep + 1} / ${_steps.length}',
-                      style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.7),
-                          fontSize: 14)),
+                  Text(
+                    '${_currentStep + 1} / ${_steps.length}',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 14,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -100,21 +124,31 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                     Text(step.emoji, style: const TextStyle(fontSize: 72))
                         .animate()
                         .fadeIn(duration: 400.ms)
-                        .scale(begin: const Offset(0.5, 0.5), duration: 400.ms,
-                            curve: Curves.easeOutBack),
+                        .scale(
+                          begin: const Offset(0.5, 0.5),
+                          duration: 400.ms,
+                          curve: Curves.easeOutBack,
+                        ),
                     const SizedBox(height: 24),
-                    Text(step.title,
-                        style: const TextStyle(color: Colors.white,
-                            fontSize: 28, fontWeight: FontWeight.bold),
-                        textAlign: TextAlign.center)
-                        .animate().fadeIn(delay: 200.ms, duration: 400.ms),
+                    Text(
+                      step.title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ).animate().fadeIn(delay: 200.ms, duration: 400.ms),
                     const SizedBox(height: 16),
-                    Text(step.instruction,
-                        style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.85),
-                            fontSize: 18, height: 1.6),
-                        textAlign: TextAlign.center)
-                        .animate().fadeIn(delay: 300.ms, duration: 400.ms),
+                    Text(
+                      step.instruction,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: 18,
+                        height: 1.6,
+                      ),
+                      textAlign: TextAlign.center,
+                    ).animate().fadeIn(delay: 300.ms, duration: 400.ms),
                     if (_currentStep == 2) ...[
                       const SizedBox(height: 32),
                       _buildBreathingExercise(),
@@ -137,7 +171,8 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                           side: const BorderSide(color: Colors.white54),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
                         child: const Text('Previous'),
                       ),
@@ -158,14 +193,17 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                         foregroundColor: step.color,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16)),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
                       child: Text(
                         _currentStep < _steps.length - 1
                             ? 'Next Step'
                             : 'I\'m Okay Now',
                         style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w700),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
@@ -177,12 +215,18 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
               padding: const EdgeInsets.only(bottom: 16),
               child: TextButton.icon(
                 onPressed: () => _showHelplines(context),
-                icon: Icon(Icons.phone_rounded,
-                    color: Colors.white.withValues(alpha: 0.7), size: 16),
-                label: Text('Need more help? View helpline numbers',
-                    style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.7),
-                        fontSize: 12)),
+                icon: Icon(
+                  Icons.phone_rounded,
+                  color: Colors.white.withValues(alpha: 0.7),
+                  size: 16,
+                ),
+                label: Text(
+                  'Need more help? View helpline numbers',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.7),
+                    fontSize: 12,
+                  ),
+                ),
               ),
             ),
           ],
@@ -194,26 +238,27 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
   void _showHelplines(BuildContext context) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Need More Help?'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('🔹 NIMHANS: 080-46110007'),
-            SizedBox(height: 4),
-            Text('🔹 Vandrevala Foundation: 1860-2662-345'),
-            SizedBox(height: 4),
-            Text('🔹 iCall: 9152987821'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
+      builder:
+          (_) => AlertDialog(
+            title: const Text('Need More Help?'),
+            content: const Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('🔹 NIMHANS: 080-46110007'),
+                SizedBox(height: 4),
+                Text('🔹 Vandrevala Foundation: 1860-2662-345'),
+                SizedBox(height: 4),
+                Text('🔹 iCall: 9152987821'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -231,7 +276,9 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
               shape: BoxShape.circle,
               color: Colors.white.withValues(alpha: 0.2),
               border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.5), width: 3),
+                color: Colors.white.withValues(alpha: 0.5),
+                width: 3,
+              ),
             ),
             child: Center(
               child: Text(
@@ -239,18 +286,23 @@ class _EmergencyScreenState extends State<EmergencyScreen> {
                     ? (_breathingIn ? 'Breathe In' : 'Breathe Out')
                     : 'Tap to Start',
                 style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600),
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
                 textAlign: TextAlign.center,
               ),
             ),
           ),
           if (_breathingActive) ...[
             const SizedBox(height: 12),
-            Text('Cycle ${_breathingCycles + 1} of 5',
-                style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7), fontSize: 13)),
+            Text(
+              'Cycle ${_breathingCycles + 1} of 5',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.7),
+                fontSize: 13,
+              ),
+            ),
           ],
         ],
       ),

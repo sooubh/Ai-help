@@ -75,12 +75,10 @@ class _ChatScreenState extends State<ChatScreen> {
       final stream = _firebaseService.getChatMessages();
       final messages = await stream.first;
       if (messages.isNotEmpty && mounted) {
-        final historyMsgs = messages.take(50).map((msg) {
-          return _ChatMsg(
-            text: msg.message,
-            isUser: msg.sender == 'user',
-          );
-        }).toList();
+        final historyMsgs =
+            messages.take(50).map((msg) {
+              return _ChatMsg(text: msg.message, isUser: msg.sender == 'user');
+            }).toList();
 
         setState(() {
           _messages.addAll(historyMsgs);
@@ -93,10 +91,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     // Add welcome message if no history
     if (_messages.isEmpty) {
-      _messages.add(_ChatMsg(
-        text: AppStrings.chatWelcome,
-        isUser: false,
-      ));
+      _messages.add(_ChatMsg(text: AppStrings.chatWelcome, isUser: false));
       if (mounted) setState(() {});
     }
   }
@@ -117,12 +112,14 @@ class _ChatScreenState extends State<ChatScreen> {
     final aiService = context.read<AiService>();
 
     // Save user message to Firestore
-    await _firebaseService.sendChatMessage(ChatMessageModel(
-      id: '',
-      message: text,
-      sender: 'user',
-      timestamp: DateTime.now(),
-    ));
+    await _firebaseService.sendChatMessage(
+      ChatMessageModel(
+        id: '',
+        message: text,
+        sender: 'user',
+        timestamp: DateTime.now(),
+      ),
+    );
 
     // Get AI response stream
     try {
@@ -146,12 +143,14 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       // Save AI response to Firestore
-      await _firebaseService.sendChatMessage(ChatMessageModel(
-        id: '',
-        message: fullResponse,
-        sender: 'ai',
-        timestamp: DateTime.now(),
-      ));
+      await _firebaseService.sendChatMessage(
+        ChatMessageModel(
+          id: '',
+          message: fullResponse,
+          sender: 'ai',
+          timestamp: DateTime.now(),
+        ),
+      );
 
       // Speak response if TTS is enabled
       if (_ttsEnabled) {
@@ -204,20 +203,24 @@ class _ChatScreenState extends State<ChatScreen> {
 
           // Messages area
           Expanded(
-            child: _messages.isEmpty && !_isTyping
-                ? _buildSuggestedPrompts(isDark)
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                    itemCount: _messages.length + (_isTyping ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index == _messages.length && _isTyping) {
-                        return _buildTypingIndicator(isDark);
-                      }
-                      return _buildMessageBubble(
-                          _messages[index], isDark, index);
-                    },
-                  ),
+            child:
+                _messages.isEmpty && !_isTyping
+                    ? _buildSuggestedPrompts(isDark)
+                    : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      itemCount: _messages.length + (_isTyping ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index == _messages.length && _isTyping) {
+                          return _buildTypingIndicator(isDark);
+                        }
+                        return _buildMessageBubble(
+                          _messages[index],
+                          isDark,
+                          index,
+                        );
+                      },
+                    ),
           ),
 
           // Input area
@@ -265,9 +268,7 @@ class _ChatScreenState extends State<ChatScreen> {
             if (!_ttsEnabled) _ttsService.stop();
           },
           icon: Icon(
-            _ttsEnabled
-                ? Icons.volume_up_rounded
-                : Icons.volume_off_rounded,
+            _ttsEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
             size: 22,
           ),
           tooltip: _ttsEnabled ? 'Mute voice' : 'Enable voice',
@@ -277,21 +278,23 @@ class _ChatScreenState extends State<ChatScreen> {
             if (value == 'clear') {
               showDialog<bool>(
                 context: context,
-                builder: (_) => AlertDialog(
-                  title: const Text('Clear Chat'),
-                  content: const Text(
-                      'This will clear the current chat session. History in Firestore is preserved.'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Cancel'),
+                builder:
+                    (_) => AlertDialog(
+                      title: const Text('Clear Chat'),
+                      content: const Text(
+                        'This will clear the current chat session. History in Firestore is preserved.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Clear'),
+                        ),
+                      ],
                     ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text('Clear'),
-                    ),
-                  ],
-                ),
               ).then((confirmed) {
                 if (confirmed == true && mounted) {
                   setState(() => _messages.clear());
@@ -300,18 +303,19 @@ class _ChatScreenState extends State<ChatScreen> {
               });
             }
           },
-          itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'clear',
-              child: Row(
-                children: [
-                  Icon(Icons.delete_outline_rounded, size: 20),
-                  SizedBox(width: 8),
-                  Text('Clear Chat'),
-                ],
-              ),
-            ),
-          ],
+          itemBuilder:
+              (context) => [
+                const PopupMenuItem(
+                  value: 'clear',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline_rounded, size: 20),
+                      SizedBox(width: 8),
+                      Text('Clear Chat'),
+                    ],
+                  ),
+                ),
+              ],
         ),
       ],
     );
@@ -321,20 +325,20 @@ class _ChatScreenState extends State<ChatScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: isDark
-          ? AppColors.darkSurfaceVariant.withValues(alpha: 0.5)
-          : AppColors.warningLight.withValues(alpha: 0.5),
+      color:
+          isDark
+              ? AppColors.darkSurfaceVariant.withValues(alpha: 0.5)
+              : AppColors.warningLight.withValues(alpha: 0.5),
       child: Row(
         children: [
-          const Icon(Icons.shield_rounded,
-              color: AppColors.warning, size: 14),
+          const Icon(Icons.shield_rounded, color: AppColors.warning, size: 14),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               AppStrings.disclaimerShort,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 10,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontSize: 10),
             ),
           ),
         ],
@@ -346,96 +350,110 @@ class _ChatScreenState extends State<ChatScreen> {
     final isUser = message.isUser;
 
     return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.78,
-        ),
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: isUser
-              ? AppColors.primary
-              : (isDark ? AppColors.darkCardBackground : AppColors.aiBubble),
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(18),
-            topRight: const Radius.circular(18),
-            bottomLeft: isUser
-                ? const Radius.circular(18)
-                : const Radius.circular(4),
-            bottomRight: isUser
-                ? const Radius.circular(4)
-                : const Radius.circular(18),
-          ),
-          border: !isUser && isDark
-              ? Border.all(
-                  color: AppColors.darkBorder.withValues(alpha: 0.3))
-              : null,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (!isUser)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.smart_toy_rounded,
-                      size: 12,
-                      color: isDark
-                          ? AppColors.primaryLight
-                          : AppColors.primary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'CARE-AI',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: isDark
-                            ? AppColors.primaryLight
-                            : AppColors.primary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            SelectableText(
-              message.text,
-              style: TextStyle(
-                color: isUser
-                    ? Colors.white
-                    : (isDark
-                        ? AppColors.darkTextPrimary
-                        : AppColors.textPrimary),
-                fontSize: 14,
-                height: 1.5,
-              ),
+          alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.78,
             ),
-            // TTS button for AI messages
-            if (!isUser)
-              Align(
-                alignment: Alignment.centerRight,
-                child: GestureDetector(
-                  onTap: () => _ttsService.speak(message.text),
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Icon(
-                      Icons.volume_up_rounded,
-                      size: 16,
-                      color: isDark
-                          ? AppColors.darkTextTertiary
-                          : AppColors.textTertiary,
+            margin: const EdgeInsets.symmetric(vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color:
+                  isUser
+                      ? AppColors.primary
+                      : (isDark
+                          ? AppColors.darkCardBackground
+                          : AppColors.aiBubble),
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(18),
+                topRight: const Radius.circular(18),
+                bottomLeft:
+                    isUser
+                        ? const Radius.circular(18)
+                        : const Radius.circular(4),
+                bottomRight:
+                    isUser
+                        ? const Radius.circular(4)
+                        : const Radius.circular(18),
+              ),
+              border:
+                  !isUser && isDark
+                      ? Border.all(
+                        color: AppColors.darkBorder.withValues(alpha: 0.3),
+                      )
+                      : null,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!isUser)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.smart_toy_rounded,
+                          size: 12,
+                          color:
+                              isDark
+                                  ? AppColors.primaryLight
+                                  : AppColors.primary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'CARE-AI',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color:
+                                isDark
+                                    ? AppColors.primaryLight
+                                    : AppColors.primary,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                SelectableText(
+                  message.text,
+                  style: TextStyle(
+                    color:
+                        isUser
+                            ? Colors.white
+                            : (isDark
+                                ? AppColors.darkTextPrimary
+                                : AppColors.textPrimary),
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
                 ),
-              ),
-          ],
-        ),
-      ),
-    ).animate().fadeIn(duration: 300.ms).slideX(
+                // TTS button for AI messages
+                if (!isUser)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: GestureDetector(
+                      onTap: () => _ttsService.speak(message.text),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Icon(
+                          Icons.volume_up_rounded,
+                          size: 16,
+                          color:
+                              isDark
+                                  ? AppColors.darkTextTertiary
+                                  : AppColors.textTertiary,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        )
+        .animate()
+        .fadeIn(duration: 300.ms)
+        .slideX(
           begin: isUser ? 0.05 : -0.05,
           duration: 300.ms,
           curve: Curves.easeOutCubic,
@@ -486,15 +504,17 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Column(
         children: [
           const SizedBox(height: 24),
-          Icon(Icons.smart_toy_rounded,
-              size: 56,
-              color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary),
+          Icon(
+            Icons.smart_toy_rounded,
+            size: 56,
+            color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+          ),
           const SizedBox(height: 16),
           Text(
             'Hi! I\'m your CARE-AI assistant',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
           Text(
@@ -507,42 +527,46 @@ class _ChatScreenState extends State<ChatScreen> {
             alignment: Alignment.centerLeft,
             child: Text(
               'Try asking:',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: prompts.map((prompt) {
-              return GestureDetector(
-                onTap: () {
-                  _messageController.text = prompt;
-                  _sendMessage();
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? AppColors.darkSurfaceVariant
-                        : AppColors.primarySurface,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: AppColors.primary.withValues(alpha: 0.15),
-                    ),
-                  ),
-                  child: Text(
-                    prompt,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            children:
+                prompts.map((prompt) {
+                  return GestureDetector(
+                    onTap: () {
+                      _messageController.text = prompt;
+                      _sendMessage();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color:
+                            isDark
+                                ? AppColors.darkSurfaceVariant
+                                : AppColors.primarySurface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.15),
+                        ),
+                      ),
+                      child: Text(
+                        prompt,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           fontWeight: FontWeight.w500,
                         ),
-                  ),
-                ),
-              );
-            }).toList(),
+                      ),
+                    ),
+                  );
+                }).toList(),
           ),
         ],
       ),
@@ -568,9 +592,10 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
-                  color: isDark
-                      ? AppColors.darkSurfaceVariant
-                      : AppColors.surfaceVariant,
+                  color:
+                      isDark
+                          ? AppColors.darkSurfaceVariant
+                          : AppColors.surfaceVariant,
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: Row(
@@ -585,11 +610,12 @@ class _ChatScreenState extends State<ChatScreen> {
                             _isListening
                                 ? Icons.mic_rounded
                                 : Icons.mic_none_rounded,
-                            color: _isListening
-                                ? AppColors.error
-                                : (isDark
-                                    ? AppColors.darkTextTertiary
-                                    : AppColors.textTertiary),
+                            color:
+                                _isListening
+                                    ? AppColors.error
+                                    : (isDark
+                                        ? AppColors.darkTextTertiary
+                                        : AppColors.textTertiary),
                             size: 22,
                           ),
                         ),
@@ -602,21 +628,22 @@ class _ChatScreenState extends State<ChatScreen> {
                         textInputAction: TextInputAction.send,
                         onSubmitted: (_) => _sendMessage(),
                         style: TextStyle(
-                          color: isDark
-                              ? AppColors.darkTextPrimary
-                              : AppColors.textPrimary,
+                          color:
+                              isDark
+                                  ? AppColors.darkTextPrimary
+                                  : AppColors.textPrimary,
                           fontSize: 14,
                         ),
                         decoration: InputDecoration(
                           hintText: AppStrings.typeMessage,
                           hintStyle: TextStyle(
-                            color: isDark
-                                ? AppColors.darkTextTertiary
-                                : AppColors.textTertiary,
+                            color:
+                                isDark
+                                    ? AppColors.darkTextTertiary
+                                    : AppColors.textTertiary,
                           ),
                           border: InputBorder.none,
-                          contentPadding:
-                              const EdgeInsets.symmetric(
+                          contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 10,
                           ),
@@ -635,23 +662,23 @@ class _ChatScreenState extends State<ChatScreen> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  gradient: _isTyping
-                      ? null
-                      : const LinearGradient(
-                          colors: [Color(0xFF5B6EF5), Color(0xFFA855F7)],
-                        ),
-                  color: _isTyping
-                      ? (isDark
-                          ? AppColors.darkSurfaceVariant
-                          : AppColors.surfaceVariant)
-                      : null,
+                  gradient:
+                      _isTyping
+                          ? null
+                          : const LinearGradient(
+                            colors: [Color(0xFF5B6EF5), Color(0xFFA855F7)],
+                          ),
+                  color:
+                      _isTyping
+                          ? (isDark
+                              ? AppColors.darkSurfaceVariant
+                              : AppColors.surfaceVariant)
+                          : null,
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: Icon(
                   Icons.send_rounded,
-                  color: _isTyping
-                      ? AppColors.textTertiary
-                      : Colors.white,
+                  color: _isTyping ? AppColors.textTertiary : Colors.white,
                   size: 22,
                 ),
               ),
@@ -682,13 +709,13 @@ class _TypingDot extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      width: 8,
-      height: 8,
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
-        shape: BoxShape.circle,
-      ),
-    )
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+            shape: BoxShape.circle,
+          ),
+        )
         .animate(onPlay: (c) => c.repeat())
         .fadeIn(delay: delay, duration: 300.ms)
         .then()

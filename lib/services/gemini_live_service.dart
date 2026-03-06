@@ -26,14 +26,18 @@ class GeminiLiveService {
     }
 
     final wsUrl = Uri.parse(
-        'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=$apiKey');
+      'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=$apiKey',
+    );
 
     try {
       AppLogger.info('GeminiLiveService', 'Connecting to WebSocket...');
       _channel = WebSocketChannel.connect(wsUrl);
 
       await _channel!.ready;
-      AppLogger.info('GeminiLiveService', 'WebSocket handshake complete — sending setup');
+      AppLogger.info(
+        'GeminiLiveService',
+        'WebSocket handshake complete — sending setup',
+      );
 
       _channel!.stream.listen(
         _onMessage,
@@ -42,8 +46,10 @@ class GeminiLiveService {
           disconnect();
         },
         onDone: () {
-          AppLogger.info('GeminiLiveService',
-              'WebSocket closed. Code: ${_channel?.closeCode} Reason: ${_channel?.closeReason}');
+          AppLogger.info(
+            'GeminiLiveService',
+            'WebSocket closed. Code: ${_channel?.closeCode} Reason: ${_channel?.closeReason}',
+          );
           disconnect();
         },
       );
@@ -52,12 +58,12 @@ class GeminiLiveService {
         "setup": {
           "model": "models/gemini-2.5-flash-native-audio-preview-12-2025",
           "generation_config": {
-            "response_modalities": ["AUDIO"]
+            "response_modalities": ["AUDIO"],
           },
           "system_instruction": {
             "parts": [
-              {"text": systemInstruction}
-            ]
+              {"text": systemInstruction},
+            ],
           },
           "tools": [
             {
@@ -70,27 +76,34 @@ class GeminiLiveService {
                     "properties": {
                       "action": {
                         "type": "STRING",
-                        "description": "Action type: 'navigate' or 'launch'"
+                        "description": "Action type: 'navigate' or 'launch'",
                       },
                       "target": {
                         "type": "STRING",
-                        "description": "Target screen or module name"
-                      }
+                        "description": "Target screen or module name",
+                      },
                     },
-                    "required": ["action", "target"]
-                  }
-                }
-              ]
-            }
-          ]
-        }
+                    "required": ["action", "target"],
+                  },
+                },
+              ],
+            },
+          ],
+        },
       };
 
       _channel!.sink.add(jsonEncode(setupMessage));
-      AppLogger.info('GeminiLiveService', 'Setup message sent — waiting for setupComplete');
-
+      AppLogger.info(
+        'GeminiLiveService',
+        'Setup message sent — waiting for setupComplete',
+      );
     } catch (e, stack) {
-      AppLogger.error('GeminiLiveService', 'Error connecting WebSocket', e, stack);
+      AppLogger.error(
+        'GeminiLiveService',
+        'Error connecting WebSocket',
+        e,
+        stack,
+      );
       disconnect();
     }
   }
@@ -112,7 +125,10 @@ class GeminiLiveService {
     } else if (message is List<int>) {
       jsonString = utf8.decode(message);
     } else {
-      AppLogger.info('GeminiLiveService', 'Unknown message type: ${message.runtimeType}');
+      AppLogger.info(
+        'GeminiLiveService',
+        'Unknown message type: ${message.runtimeType}',
+      );
       return;
     }
 
@@ -122,7 +138,10 @@ class GeminiLiveService {
       _messageController.add(data);
 
       if (data.containsKey('setupComplete')) {
-        AppLogger.info('GeminiLiveService', 'setupComplete received — mic will start now');
+        AppLogger.info(
+          'GeminiLiveService',
+          'setupComplete received — mic will start now',
+        );
         return;
       }
 
@@ -154,11 +173,18 @@ class GeminiLiveService {
       }
 
       if (data.containsKey('toolCall')) {
-        AppLogger.info('GeminiLiveService', 'toolCall received: ${data['toolCall']}');
+        AppLogger.info(
+          'GeminiLiveService',
+          'toolCall received: ${data['toolCall']}',
+        );
       }
-
     } catch (e, stack) {
-      AppLogger.error('GeminiLiveService', 'Error parsing WebSocket message', e, stack);
+      AppLogger.error(
+        'GeminiLiveService',
+        'Error parsing WebSocket message',
+        e,
+        stack,
+      );
     }
   }
 
@@ -168,17 +194,19 @@ class GeminiLiveService {
     final message = {
       "realtime_input": {
         "media_chunks": [
-          {
-            "mime_type": "audio/pcm;rate=16000",
-            "data": base64Data
-          }
-        ]
-      }
+          {"mime_type": "audio/pcm;rate=16000", "data": base64Data},
+        ],
+      },
     };
     try {
       _channel!.sink.add(jsonEncode(message));
     } catch (e, stack) {
-      AppLogger.error('GeminiLiveService', 'Error sending audio chunk', e, stack);
+      AppLogger.error(
+        'GeminiLiveService',
+        'Error sending audio chunk',
+        e,
+        stack,
+      );
     }
   }
 
@@ -189,16 +217,23 @@ class GeminiLiveService {
         "turns": [
           {
             "role": "user",
-            "parts": [{"text": text}]
-          }
+            "parts": [
+              {"text": text},
+            ],
+          },
         ],
-        "turnComplete": true
-      }
+        "turnComplete": true,
+      },
     };
     try {
       _channel!.sink.add(jsonEncode(message));
     } catch (e, stack) {
-      AppLogger.error('GeminiLiveService', 'Error sending client content', e, stack);
+      AppLogger.error(
+        'GeminiLiveService',
+        'Error sending client content',
+        e,
+        stack,
+      );
     }
   }
 

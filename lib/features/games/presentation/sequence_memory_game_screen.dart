@@ -12,7 +12,8 @@ class SequenceMemoryGameScreen extends StatefulWidget {
   const SequenceMemoryGameScreen({super.key});
 
   @override
-  State<SequenceMemoryGameScreen> createState() => _SequenceMemoryGameScreenState();
+  State<SequenceMemoryGameScreen> createState() =>
+      _SequenceMemoryGameScreenState();
 }
 
 class _Pad {
@@ -25,7 +26,7 @@ class _Pad {
 
 class _SequenceMemoryGameScreenState extends State<SequenceMemoryGameScreen> {
   final AudioPlayer _audioPlayer = AudioPlayer();
-  
+
   final List<_Pad> _pads = [
     _Pad(0, Colors.red[700]!, Colors.redAccent[100]!),
     _Pad(1, Colors.blue[700]!, Colors.blueAccent[100]!),
@@ -36,10 +37,10 @@ class _SequenceMemoryGameScreenState extends State<SequenceMemoryGameScreen> {
   final List<int> _sequence = [];
   int _userStep = 0;
   int _score = 0;
-  
+
   bool _isPlayingSequence = false;
   int? _activePadIndex;
-  
+
   DateTime? _startTime;
   bool _isDisposed = false;
 
@@ -71,17 +72,17 @@ class _SequenceMemoryGameScreenState extends State<SequenceMemoryGameScreen> {
     });
 
     await Future.delayed(const Duration(milliseconds: 1000));
-    
+
     for (int padIndex in _sequence) {
       if (_isDisposed) return;
-      
+
       setState(() {
         _activePadIndex = padIndex;
       });
       _playSound(padIndex);
 
       await Future.delayed(const Duration(milliseconds: 400));
-      
+
       if (_isDisposed) return;
       setState(() {
         _activePadIndex = null;
@@ -103,7 +104,7 @@ class _SequenceMemoryGameScreenState extends State<SequenceMemoryGameScreen> {
       // await _audioPlayer.play(AssetSource('sounds/tone_$index.mp3'));
     } catch (_) {}
   }
-  
+
   Future<void> _playFailureSound() async {
     try {
       await _audioPlayer.play(AssetSource('sounds/error.mp3'));
@@ -149,40 +150,46 @@ class _SequenceMemoryGameScreenState extends State<SequenceMemoryGameScreen> {
       score: _score,
       maxScore: _score + 1,
       totalMoves: _score,
-      durationSeconds: DateTime.now().difference(_startTime ?? DateTime.now()).inSeconds,
+      durationSeconds:
+          DateTime.now().difference(_startTime ?? DateTime.now()).inSeconds,
       completedAt: DateTime.now(),
     );
     service.logGameSession(session);
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Game Over!'),
-        content: Text('You remembered a sequence of $_score!'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _startGame();
-            },
-            child: const Text('Try Again'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
             ),
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text('Done'),
+            title: const Text('Game Over!'),
+            content: Text('You remembered a sequence of $_score!'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _startGame();
+                },
+                child: const Text('Try Again'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.pop(context);
+                },
+                child: const Text('Done'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -232,29 +239,33 @@ class _SequenceMemoryGameScreenState extends State<SequenceMemoryGameScreen> {
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
-            
+
             Text(
-              _sequence.isEmpty 
-                  ? 'Tap Start to watch the pattern' 
-                  : (_isPlayingSequence ? 'Watch Carefully...' : 'Now repeat the pattern!'),
+              _sequence.isEmpty
+                  ? 'Tap Start to watch the pattern'
+                  : (_isPlayingSequence
+                      ? 'Watch Carefully...'
+                      : 'Now repeat the pattern!'),
               style: TextStyle(
-                fontSize: 18, 
-                color: _isPlayingSequence ? AppColors.accent : AppColors.primary,
+                fontSize: 18,
+                color:
+                    _isPlayingSequence ? AppColors.accent : AppColors.primary,
                 fontWeight: FontWeight.w600,
               ),
             ),
-            
+
             const SizedBox(height: 40),
-            
+
             // Simon Says Board
             AspectRatio(
               aspectRatio: 1,
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).brightness == Brightness.dark 
-                      ? const Color(0xFF1E1E2C) 
-                      : Colors.grey[200],
+                  color:
+                      Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF1E1E2C)
+                          : Colors.grey[200],
                   shape: BoxShape.circle,
                 ),
                 child: GridView.count(
@@ -263,7 +274,11 @@ class _SequenceMemoryGameScreenState extends State<SequenceMemoryGameScreen> {
                   children: _pads.map(_buildPad).toList(),
                 ),
               ),
-            ).animate().scale(delay: 200.ms, duration: 400.ms, curve: Curves.easeOutBack),
+            ).animate().scale(
+              delay: 200.ms,
+              duration: 400.ms,
+              curve: Curves.easeOutBack,
+            ),
 
             const SizedBox(height: 60),
 
@@ -275,8 +290,13 @@ class _SequenceMemoryGameScreenState extends State<SequenceMemoryGameScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 40,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
               ).animate().fadeIn(delay: 500.ms),
           ],

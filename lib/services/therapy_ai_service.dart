@@ -144,9 +144,8 @@ Provide therapy feedback. Be warm and encouraging. Return JSON with:
   int adjustDifficulty(List<TherapySessionModel> recentSessions) {
     if (recentSessions.isEmpty) return 1;
 
-    final avgScore = recentSessions
-            .map((s) => s.scorePercent)
-            .reduce((a, b) => a + b) /
+    final avgScore =
+        recentSessions.map((s) => s.scorePercent).reduce((a, b) => a + b) /
         recentSessions.length;
 
     final currentDiff = recentSessions.first.difficultyLevel;
@@ -260,13 +259,16 @@ Identify skill gaps and provide analysis. Return JSON with:
     String msg;
     String celebration;
     if (pct >= 80) {
-      msg = 'Amazing work! You did a fantastic job on this activity. Keep up the great effort!';
+      msg =
+          'Amazing work! You did a fantastic job on this activity. Keep up the great effort!';
       celebration = 'rocket';
     } else if (pct >= 50) {
-      msg = 'Good job completing this activity! With a little more practice, you\'ll get even better.';
+      msg =
+          'Good job completing this activity! With a little more practice, you\'ll get even better.';
       celebration = 'trophy';
     } else {
-      msg = 'Great effort trying this activity! Every attempt helps you grow. Let\'s try again soon!';
+      msg =
+          'Great effort trying this activity! Every attempt helps you grow. Let\'s try again soon!';
       celebration = 'star';
     }
     return {
@@ -274,20 +276,36 @@ Identify skill gaps and provide analysis. Return JSON with:
       'strengthsObserved': ['Persistence', 'Engagement'],
       'areasToImprove': ['Keep practicing for higher accuracy'],
       'suggestedNextDifficulty': session.difficultyLevel,
-      'nextActivitySuggestion': 'Try another activity in the same category to reinforce learning.',
+      'nextActivitySuggestion':
+          'Try another activity in the same category to reinforce learning.',
       'celebrationLevel': celebration,
     };
   }
 
   List<Map<String, dynamic>> _fallbackWeeklyPlan() {
-    final days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    final days = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
     return days
-        .map((d) => {
-              'day': d,
-              'activities': [
-                {'moduleId': 'mod_1', 'title': 'Practice Activity', 'duration': '15 min', 'difficulty': 1},
-              ]
-            })
+        .map(
+          (d) => {
+            'day': d,
+            'activities': [
+              {
+                'moduleId': 'mod_1',
+                'title': 'Practice Activity',
+                'duration': '15 min',
+                'difficulty': 1,
+              },
+            ],
+          },
+        )
         .toList();
   }
 
@@ -296,8 +314,10 @@ Identify skill gaps and provide analysis. Return JSON with:
       'strongAreas': [],
       'weakAreas': [],
       'neglectedAreas': ['Complete more activities to see analysis'],
-      'overallAssessment': 'Not enough data yet. Keep completing therapy activities!',
-      'focusRecommendation': 'Try activities across different skill categories.',
+      'overallAssessment':
+          'Not enough data yet. Keep completing therapy activities!',
+      'focusRecommendation':
+          'Try activities across different skill categories.',
     };
   }
 }

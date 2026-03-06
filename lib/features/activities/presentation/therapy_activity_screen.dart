@@ -70,8 +70,7 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
     _stopwatch.stop();
     setState(() => _isCompleted = true);
 
-    final accuracy =
-        _maxScore > 0 ? (_score / _maxScore * 100) : 0.0;
+    final accuracy = _maxScore > 0 ? (_score / _maxScore * 100) : 0.0;
 
     final session = TherapySessionModel(
       moduleId: widget.module.id,
@@ -90,8 +89,7 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
 
     // Save session
     try {
-      await _firebase.saveTherapySession(
-          session, widget.childProfile?.id);
+      await _firebase.saveTherapySession(session, widget.childProfile?.id);
     } catch (_) {}
 
     // Get AI feedback
@@ -110,8 +108,7 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
   }
 
   int _calculateEngagement() {
-    final timePerStep =
-        _stopwatch.elapsed.inSeconds / (_currentStep + 1);
+    final timePerStep = _stopwatch.elapsed.inSeconds / (_currentStep + 1);
     // If completing each step takes a reasonable time (5-60s), engagement is good
     if (timePerStep >= 5 && timePerStep <= 60) return 5;
     if (timePerStep >= 3 && timePerStep <= 90) return 4;
@@ -138,8 +135,7 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.stars_rounded,
-                    color: AppColors.primary, size: 18),
+                Icon(Icons.stars_rounded, color: AppColors.primary, size: 18),
                 const SizedBox(width: 4),
                 Text(
                   '$_score pts',
@@ -153,7 +149,10 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
           ),
         ],
       ),
-      body: _isCompleted ? _buildCompletionView(isDark, theme) : _buildActivityView(isDark, theme),
+      body:
+          _isCompleted
+              ? _buildCompletionView(isDark, theme)
+              : _buildActivityView(isDark, theme),
     );
   }
 
@@ -165,10 +164,8 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
         // Progress indicator
         LinearProgressIndicator(
           value: (_currentStep + 1) / _totalSteps,
-          backgroundColor:
-              isDark ? Colors.white10 : Colors.grey.shade200,
-          valueColor:
-              AlwaysStoppedAnimation<Color>(AppColors.primary),
+          backgroundColor: isDark ? Colors.white10 : Colors.grey.shade200,
+          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
           minHeight: 4,
         ),
 
@@ -193,7 +190,9 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.primary.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
@@ -210,7 +209,9 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: _difficultyColor.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
@@ -225,9 +226,11 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
                     ),
                   ),
                   const Spacer(),
-                  Icon(Icons.timer_outlined,
-                      size: 16,
-                      color: isDark ? Colors.white54 : Colors.grey),
+                  Icon(
+                    Icons.timer_outlined,
+                    size: 16,
+                    color: isDark ? Colors.white54 : Colors.grey,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     '${widget.module.durationMinutes} min',
@@ -259,7 +262,7 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
               ),
               const Spacer(),
               Text(
-                    widget.module.difficultyLabel,
+                widget.module.difficultyLabel,
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: _difficultyColor,
                   fontWeight: FontWeight.w600,
@@ -277,17 +280,19 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
             margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
+              color:
+                  isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
               borderRadius: BorderRadius.circular(20),
-              boxShadow: isDark
-                  ? null
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.06),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+              boxShadow:
+                  isDark
+                      ? null
+                      : [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
             ),
             child: SingleChildScrollView(
               child: Column(
@@ -316,17 +321,22 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    ...widget.module.materials.map((m) => Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Row(
-                            children: [
-                              Icon(Icons.check_circle_outline,
-                                  size: 16, color: AppColors.primary),
-                              const SizedBox(width: 8),
-                              Expanded(child: Text(m)),
-                            ],
-                          ),
-                        )),
+                    ...widget.module.materials.map(
+                      (m) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle_outline,
+                              size: 16,
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(m)),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ],
               ),
@@ -343,13 +353,11 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
                 Expanded(
                   flex: 1,
                   child: OutlinedButton.icon(
-                    onPressed: () =>
-                        setState(() => _currentStep--),
+                    onPressed: () => setState(() => _currentStep--),
                     icon: const Icon(Icons.arrow_back_rounded),
                     label: const Text('Back'),
                     style: OutlinedButton.styleFrom(
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 14),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -361,17 +369,20 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
                 flex: 2,
                 child: ElevatedButton.icon(
                   onPressed: () => _completeStep(),
-                  icon: Icon(_currentStep == _totalSteps - 1
-                      ? Icons.check_circle_rounded
-                      : Icons.arrow_forward_rounded),
-                  label: Text(_currentStep == _totalSteps - 1
-                      ? 'Complete!'
-                      : 'Done — Next Step'),
+                  icon: Icon(
+                    _currentStep == _totalSteps - 1
+                        ? Icons.check_circle_rounded
+                        : Icons.arrow_forward_rounded,
+                  ),
+                  label: Text(
+                    _currentStep == _totalSteps - 1
+                        ? 'Complete!'
+                        : 'Done — Next Step',
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -388,8 +399,7 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
   // ─── COMPLETION VIEW ────────────────────────────────────────
 
   Widget _buildCompletionView(bool isDark, ThemeData theme) {
-    final accuracy =
-        _maxScore > 0 ? (_score / _maxScore * 100) : 0.0;
+    final accuracy = _maxScore > 0 ? (_score / _maxScore * 100) : 0.0;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -409,18 +419,17 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
               accuracy >= 80
                   ? Icons.rocket_launch_rounded
                   : accuracy >= 50
-                      ? Icons.emoji_events_rounded
-                      : Icons.star_rounded,
+                  ? Icons.emoji_events_rounded
+                  : Icons.star_rounded,
               color: Colors.white,
               size: 48,
             ),
-          )
-              .animate()
-              .scale(
-                  begin: const Offset(0, 0),
-                  end: const Offset(1, 1),
-                  duration: 600.ms,
-                  curve: Curves.elasticOut),
+          ).animate().scale(
+            begin: const Offset(0, 0),
+            end: const Offset(1, 1),
+            duration: 600.ms,
+            curve: Curves.elasticOut,
+          ),
 
           const SizedBox(height: 16),
           Text(
@@ -466,9 +475,7 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
                 isDark: isDark,
               ),
             ],
-          )
-              .animate()
-              .fadeIn(delay: 300.ms, duration: 400.ms),
+          ).animate().fadeIn(delay: 300.ms, duration: 400.ms),
 
           const SizedBox(height: 24),
 
@@ -477,9 +484,10 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.05)
-                    : Colors.white,
+                color:
+                    isDark
+                        ? Colors.white.withValues(alpha: 0.05)
+                        : Colors.white,
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Column(
@@ -489,8 +497,10 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
                     strokeWidth: 2,
                   ),
                   const SizedBox(height: 12),
-                  Text('AI is analyzing your performance...',
-                      style: theme.textTheme.bodyMedium),
+                  Text(
+                    'AI is analyzing your performance...',
+                    style: theme.textTheme.bodyMedium,
+                  ),
                 ],
               ),
             ),
@@ -508,8 +518,7 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
                   icon: const Icon(Icons.arrow_back_rounded),
                   label: const Text('Back to Library'),
                   style: OutlinedButton.styleFrom(
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -536,8 +545,7 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
-                    padding:
-                        const EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -567,17 +575,18 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: 0.15),
-        ),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.auto_awesome_rounded,
-                  color: AppColors.primary, size: 20),
+              Icon(
+                Icons.auto_awesome_rounded,
+                color: AppColors.primary,
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
                 'AI Therapy Feedback',
@@ -590,26 +599,25 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            feedback['feedbackMessage'] ?? 'Great job completing this activity!',
+            feedback['feedbackMessage'] ??
+                'Great job completing this activity!',
             style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
           ),
           if (feedback['strengthsObserved'] != null) ...[
             const SizedBox(height: 12),
-            Text('💪 Strengths:',
-                style: theme.textTheme.labelLarge),
+            Text('💪 Strengths:', style: theme.textTheme.labelLarge),
             const SizedBox(height: 4),
-            ...(feedback['strengthsObserved'] as List)
-                .map((s) => Text('  • $s',
-                    style: theme.textTheme.bodySmall)),
+            ...(feedback['strengthsObserved'] as List).map(
+              (s) => Text('  • $s', style: theme.textTheme.bodySmall),
+            ),
           ],
           if (feedback['areasToImprove'] != null) ...[
             const SizedBox(height: 8),
-            Text('🌱 Keep working on:',
-                style: theme.textTheme.labelLarge),
+            Text('🌱 Keep working on:', style: theme.textTheme.labelLarge),
             const SizedBox(height: 4),
-            ...(feedback['areasToImprove'] as List)
-                .map((s) => Text('  • $s',
-                    style: theme.textTheme.bodySmall)),
+            ...(feedback['areasToImprove'] as List).map(
+              (s) => Text('  • $s', style: theme.textTheme.bodySmall),
+            ),
           ],
           if (feedback['nextActivitySuggestion'] != null) ...[
             const SizedBox(height: 12),
@@ -621,8 +629,11 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.lightbulb_rounded,
-                      color: AppColors.primary, size: 18),
+                  Icon(
+                    Icons.lightbulb_rounded,
+                    color: AppColors.primary,
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(

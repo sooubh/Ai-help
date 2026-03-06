@@ -6,10 +6,8 @@ class PermissionService {
   /// This includes Microphone (for Voice Assistant) and Camera (for profile/activities).
   Future<void> requestEssentialPermissions() async {
     try {
-      final statuses = await [
-        Permission.microphone,
-        Permission.camera,
-      ].request();
+      final statuses =
+          await [Permission.microphone, Permission.camera].request();
 
       // Log statuses for debugging
       if (kDebugMode) {

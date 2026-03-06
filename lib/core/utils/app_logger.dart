@@ -17,7 +17,12 @@ class AppLogger {
   }
 
   /// Log an error with an optional stack trace.
-  static void error(String module, String message, [dynamic error, StackTrace? stackTrace]) {
+  static void error(
+    String module,
+    String message, [
+    dynamic error,
+    StackTrace? stackTrace,
+  ]) {
     _log('ERROR', module, message);
     if (error != null) {
       debugPrint('Exception: $error');
@@ -35,7 +40,10 @@ class AppLogger {
   }
 
   static void _log(String level, String module, String message) {
-    final timestamp = DateTime.now().toIso8601String().substring(11, 23); // Extract HH:mm:ss.ms
+    final timestamp = DateTime.now().toIso8601String().substring(
+      11,
+      23,
+    ); // Extract HH:mm:ss.ms
     // Use debugPrint to avoid 'avoid_print' lints and allow log truncation handling in IDEs.
     debugPrint('[$timestamp] [$level] [$module] $message');
   }

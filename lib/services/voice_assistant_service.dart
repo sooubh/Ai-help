@@ -13,6 +13,7 @@ import '../models/user_event_model.dart';
 import 'gemini_live_service.dart';
 import 'pcm_audio_player.dart';
 import 'firebase_service.dart';
+import 'context_builder_service.dart';
 import '../core/utils/app_logger.dart';
 import '../core/errors/app_exceptions.dart';
 
@@ -44,6 +45,8 @@ class VoiceAssistantService extends ChangeNotifier {
   bool _isOnline = true;
   bool _disposed = false;
 
+  Timer? _contextRefreshTimer;
+
   // Prevents addChunk() firing before start() completes
   bool _playerStarting = false;
 
@@ -66,13 +69,21 @@ class VoiceAssistantService extends ChangeNotifier {
 
       return _micAvailable;
     } catch (e, stack) {
-      AppLogger.error('VoiceAssistantService', 'Initialization error', e, stack);
+      AppLogger.error(
+        'VoiceAssistantService',
+        'Initialization error',
+        e,
+        stack,
+      );
       _micAvailable = false;
       return false;
     }
   }
 
-  Future<void> startLiveSession({ChildProfileModel? childProfile}) async {
+  Future<void> startLiveSession({
+    ChildProfileModel? childProfile,
+    String? currentScreen,
+  }) async {
     if (!_micAvailable) {
       _setError('Microphone permission denied.');
       return;
@@ -89,19 +100,47 @@ class VoiceAssistantService extends ChangeNotifier {
     _errorMessage = null;
     _updateStatus(VoiceStatus.processing);
 
-    final profileContext = childProfile != null
-        ? "Child profile: ${childProfile.name}, age ${childProfile.age}, conditions: ${childProfile.conditions.join(', ')}. "
-        : "";
+    // Build full context before connecting
+    final contextService = ContextBuilderService(_firebaseService);
+    final userId = _firebaseService.currentUser?.uid;
 
-    final systemInstruction = '''You are CARE-AI Voice, a warm, supportive virtual therapist.
-$profileContext
-RULES:
+    String fullContext = "";
+    if (userId != null) {
+      fullContext = await contextService.buildFullContext(
+        userId: userId,
+        childProfile: childProfile,
+      );
+    }
+
+    final systemInstruction =
+        '''You are CARE-AI Voice, a warm, empathetic, and professional AI therapist assistant built into the CARE-AI app.
+
+$fullContext
+
+BEHAVIORAL RULES:
 - Respond ONLY with audio. Keep responses UNDER 20 seconds. 
 - Be conversational. Do not use Markdown formatting.
-- If they ask to navigate somewhere, use the function tool to navigate.''';
+- Reference the user's actual data when relevant (e.g. "I see you completed your breathing exercise today — great work!")
+- If the user seems distressed based on recent wellness scores, be extra gentle and offer specific coping strategies.
+- If they ask to navigate somewhere, use the function tool to navigate.
+- Current screen context: ${currentScreen ?? 'unknown'}
+''';
 
     await _liveService.connect(systemInstruction);
     notifyListeners(); // Safe — called after connect(), not during build
+
+    // Context auto-refresh timer (every 5 mins)
+    _contextRefreshTimer?.cancel();
+    _contextRefreshTimer = Timer.periodic(const Duration(minutes: 5), (
+      _,
+    ) async {
+      if (!isActive || userId == null) return;
+      final refreshedContext = await contextService.buildFullContext(
+        userId: userId,
+        childProfile: childProfile,
+      );
+      _liveService.sendClientContent('Context refresh: $refreshedContext');
+    });
 
     // FIX: await start() before feeding chunks to avoid race condition
     _audioSub = _liveService.audioStream.listen((chunk) async {
@@ -120,7 +159,10 @@ RULES:
     // FIX: Start mic ONLY after setupComplete is received from API
     _msgSub = _liveService.messagesStream.listen((msg) async {
       if (msg.containsKey('setupComplete')) {
-        AppLogger.info('VoiceAssistantService', 'Setup complete — starting mic');
+        AppLogger.info(
+          'VoiceAssistantService',
+          'Setup complete — starting mic',
+        );
         await _startMicStreaming();
         _updateStatus(VoiceStatus.listening);
         return;
@@ -157,19 +199,29 @@ RULES:
   }
 
   Future<void> _startMicStreaming() async {
-    final stream = await _audioRecorder.startStream(const RecordConfig(
-      encoder: AudioEncoder.pcm16bits,
-      sampleRate: 16000,
-      numChannels: 1,
-    ));
+    final stream = await _audioRecorder.startStream(
+      const RecordConfig(
+        encoder: AudioEncoder.pcm16bits,
+        sampleRate: 16000,
+        numChannels: 1,
+      ),
+    );
 
-    _micSub = stream.listen((data) {
-      _updateWaveform(data);
-      _liveService.sendAudioChunk(data);
-    }, onError: (e, stack) {
-      AppLogger.error('VoiceAssistantService', 'Microphone stream error', e, stack);
-      _setError('Microphone error: hardware disconnected.');
-    });
+    _micSub = stream.listen(
+      (data) {
+        _updateWaveform(data);
+        _liveService.sendAudioChunk(data);
+      },
+      onError: (e, stack) {
+        AppLogger.error(
+          'VoiceAssistantService',
+          'Microphone stream error',
+          e,
+          stack,
+        );
+        _setError('Microphone error: hardware disconnected.');
+      },
+    );
   }
 
   void _updateWaveform(Uint8List data) {
@@ -217,14 +269,14 @@ RULES:
                 {
                   "functionResponse": {
                     "name": "perform_app_action",
-                    "response": {"result": "Success"}
-                  }
-                }
-              ]
-            }
+                    "response": {"result": "Success"},
+                  },
+                },
+              ],
+            },
           ],
-          "turnComplete": true
-        }
+          "turnComplete": true,
+        },
       };
       _liveService.sendJson(response);
     }
@@ -233,21 +285,40 @@ RULES:
   void _navigateToTarget(String target) {
     String route = '/home';
     switch (target.toLowerCase()) {
-      case 'dashboard': route = '/home'; break;
-      case 'wellness': route = '/wellness'; break;
-      case 'daily plan': route = '/daily-plan'; break;
-      case 'games': route = '/games'; break;
-      case 'emergency': route = '/emergency'; break;
-      case 'progress': route = '/progress'; break;
-      case 'community': route = '/community'; break;
-      case 'activities': route = '/activities'; break;
-      case 'settings': route = '/settings'; break;
+      case 'dashboard':
+        route = '/home';
+        break;
+      case 'wellness':
+        route = '/wellness';
+        break;
+      case 'daily plan':
+        route = '/daily-plan';
+        break;
+      case 'games':
+        route = '/games';
+        break;
+      case 'emergency':
+        route = '/emergency';
+        break;
+      case 'progress':
+        route = '/progress';
+        break;
+      case 'community':
+        route = '/community';
+        break;
+      case 'activities':
+        route = '/activities';
+        break;
+      case 'settings':
+        route = '/settings';
+        break;
     }
     navigatorKey.currentState?.pushNamedAndRemoveUntil(route, (r) => r.isFirst);
   }
 
   Future<void> stopSession() async {
     _playerStarting = false;
+    _contextRefreshTimer?.cancel();
     _micSub?.cancel();
     await _audioRecorder.stop();
     _liveService.disconnect();
@@ -290,18 +361,21 @@ RULES:
 
   void _logEvent(String eventType, Map<String, dynamic> metadata) {
     try {
-      _firebaseService.saveUserEvent(UserEventModel(
-        eventType: eventType,
-        screenName: 'voice_assistant_live',
-        metadata: metadata,
-        timestamp: DateTime.now(),
-      ));
+      _firebaseService.saveUserEvent(
+        UserEventModel(
+          eventType: eventType,
+          screenName: 'voice_assistant_live',
+          metadata: metadata,
+          timestamp: DateTime.now(),
+        ),
+      );
     } catch (_) {}
   }
 
   @override
   void dispose() {
     _disposed = true;
+    _contextRefreshTimer?.cancel();
     _connectivitySub?.cancel();
     stopSession();
     _liveService.dispose();

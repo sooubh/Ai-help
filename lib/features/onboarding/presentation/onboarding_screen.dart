@@ -70,14 +70,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: TextButton(
-                  onPressed: () =>
-                      Navigator.pushReplacementNamed(context, '/login'),
+                  onPressed:
+                      () => Navigator.pushReplacementNamed(context, '/login'),
                   child: Text(
                     AppStrings.skip,
                     style: TextStyle(
-                      color: isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.textSecondary,
+                      color:
+                          isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textSecondary,
                       fontSize: 16,
                     ),
                   ),
@@ -90,8 +91,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: PageView.builder(
                 controller: _pageController,
                 itemCount: _pages.length,
-                onPageChanged: (index) =>
-                    setState(() => _currentPage = index),
+                onPageChanged: (index) => setState(() => _currentPage = index),
                 itemBuilder: (context, index) {
                   final page = _pages[index];
                   return Padding(
@@ -101,30 +101,31 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       children: [
                         // Animated icon
                         Container(
-                          width: size.width * 0.45,
-                          height: size.width * 0.45,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: page.gradient,
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(40),
-                            boxShadow: [
-                              BoxShadow(
-                                color: page.gradient[0]
-                                    .withValues(alpha: 0.3),
-                                blurRadius: 40,
-                                offset: const Offset(0, 16),
+                              width: size.width * 0.45,
+                              height: size.width * 0.45,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: page.gradient,
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(40),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: page.gradient[0].withValues(
+                                      alpha: 0.3,
+                                    ),
+                                    blurRadius: 40,
+                                    offset: const Offset(0, 16),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                          child: Icon(
-                            page.icon,
-                            size: size.width * 0.2,
-                            color: Colors.white,
-                          ),
-                        )
+                              child: Icon(
+                                page.icon,
+                                size: size.width * 0.2,
+                                color: Colors.white,
+                              ),
+                            )
                             .animate()
                             .fadeIn(duration: 600.ms)
                             .scale(
@@ -137,13 +138,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                         // Title
                         Text(
-                          page.title,
-                          style: Theme.of(context)
-                              .textTheme
-                              .headlineMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                          textAlign: TextAlign.center,
-                        )
+                              page.title,
+                              style: Theme.of(context).textTheme.headlineMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.center,
+                            )
                             .animate()
                             .fadeIn(delay: 200.ms, duration: 500.ms)
                             .slideY(begin: 0.2, duration: 500.ms),
@@ -152,15 +151,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                         // Description
                         Text(
-                          page.description,
-                          style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                                color: isDark
-                                    ? AppColors.darkTextSecondary
-                                    : AppColors.textSecondary,
+                              page.description,
+                              style: Theme.of(
+                                context,
+                              ).textTheme.bodyLarge?.copyWith(
+                                color:
+                                    isDark
+                                        ? AppColors.darkTextSecondary
+                                        : AppColors.textSecondary,
                                 height: 1.6,
                               ),
-                          textAlign: TextAlign.center,
-                        )
+                              textAlign: TextAlign.center,
+                            )
                             .animate()
                             .fadeIn(delay: 400.ms, duration: 500.ms)
                             .slideY(begin: 0.2, duration: 500.ms),
@@ -183,9 +185,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     count: _pages.length,
                     effect: ExpandingDotsEffect(
                       activeDotColor: AppColors.primary,
-                      dotColor: isDark
-                          ? AppColors.darkDivider
-                          : AppColors.divider,
+                      dotColor:
+                          isDark ? AppColors.darkDivider : AppColors.divider,
                       dotHeight: 8,
                       dotWidth: 8,
                       expansionFactor: 3,
@@ -213,20 +214,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         ],
                       ),
                       child: Center(
-                        child: _currentPage == _pages.length - 1
-                            ? const Text(
-                                'Get Started',
-                                style: TextStyle(
+                        child:
+                            _currentPage == _pages.length - 1
+                                ? const Text(
+                                  'Get Started',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                )
+                                : const Icon(
+                                  Icons.arrow_forward_rounded,
                                   color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
+                                  size: 28,
                                 ),
-                              )
-                            : const Icon(
-                                Icons.arrow_forward_rounded,
-                                color: Colors.white,
-                                size: 28,
-                              ),
                       ),
                     ),
                   ),

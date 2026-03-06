@@ -74,18 +74,17 @@ class TherapySessionModel {
       totalSteps: map['totalSteps']?.toInt() ?? 0,
       engagementRating: map['engagementRating']?.toInt() ?? 3,
       aiFeedback: map['aiFeedback'],
-      nextRecommendedModuleIds:
-          List<String>.from(map['nextRecommendedModuleIds'] ?? []),
-      performanceMetrics:
-          map['performanceMetrics'] as Map<String, dynamic>?,
+      nextRecommendedModuleIds: List<String>.from(
+        map['nextRecommendedModuleIds'] ?? [],
+      ),
+      performanceMetrics: map['performanceMetrics'] as Map<String, dynamic>?,
       completedAt:
           (map['completedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
   /// Percentage score for display.
-  double get scorePercent =>
-      maxScore > 0 ? (score / maxScore * 100) : 0;
+  double get scorePercent => maxScore > 0 ? (score / maxScore * 100) : 0;
 
   /// Human-readable performance label.
   String get performanceLabel {

@@ -14,18 +14,31 @@ class AttentionGameScreen extends StatefulWidget {
 
 class _AttentionGameScreenState extends State<AttentionGameScreen> {
   final _firebaseService = FirebaseService();
-  
+
   String _targetEmoji = '⭐';
   late List<String> _grid;
-  
+
   int _score = 0;
   int _round = 1;
   static const _maxRounds = 5;
-  
+
   int _secondsElapsed = 0;
   Timer? _timer;
 
-  final _allEmojis = ['⭐', '🌙', '☀️', '🌈', '❤️', '💎', '🎵', '🔔', '⚽', '🚗', '🍎', '🐱'];
+  final _allEmojis = [
+    '⭐',
+    '🌙',
+    '☀️',
+    '🌈',
+    '❤️',
+    '💎',
+    '🎵',
+    '🔔',
+    '⚽',
+    '🚗',
+    '🍎',
+    '🐱',
+  ];
 
   @override
   void initState() {
@@ -33,7 +46,7 @@ class _AttentionGameScreenState extends State<AttentionGameScreen> {
     _startTimer();
     _generateRound();
   }
-  
+
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) setState(() => _secondsElapsed++);
@@ -42,11 +55,12 @@ class _AttentionGameScreenState extends State<AttentionGameScreen> {
 
   void _generateRound() {
     _targetEmoji = (_allEmojis.toList()..shuffle()).first;
-    
+
     // Difficulty increases with rounds: more targets to find, and potentially confusing distractions
     final targetCount = 2 + _round;
-    final otherEmojis = _allEmojis.where((e) => e != _targetEmoji).toList()..shuffle();
-    
+    final otherEmojis =
+        _allEmojis.where((e) => e != _targetEmoji).toList()..shuffle();
+
     _grid = List.generate(16, (i) {
       if (i < targetCount) {
         return _targetEmoji;
@@ -70,7 +84,8 @@ class _AttentionGameScreenState extends State<AttentionGameScreen> {
       difficultyLevel: 'Rounds: $_maxRounds',
       score: _score,
       maxScore: 2 + 3 + 4 + 5 + 6, // Total possible targets across 5 rounds
-      totalMoves: _score, // We aren't tracking wrong taps specifically here, could be added
+      totalMoves:
+          _score, // We aren't tracking wrong taps specifically here, could be added
       durationSeconds: _secondsElapsed,
       completedAt: DateTime.now(),
     );
@@ -83,7 +98,7 @@ class _AttentionGameScreenState extends State<AttentionGameScreen> {
         _score++;
         _grid[index] = '✅'; // Mark as found
       });
-      
+
       // Check if all targets are found in this round
       if (!_grid.contains(_targetEmoji)) {
         if (_round >= _maxRounds) {
@@ -105,42 +120,67 @@ class _AttentionGameScreenState extends State<AttentionGameScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Column(
-          children: [
-            const Icon(Icons.center_focus_strong_rounded, color: AppColors.accent, size: 64)
-                .animate(onPlay: (controller) => controller.repeat())
-                .scale(duration: 600.ms, curve: Curves.easeInOut)
-                .then()
-                .scale(begin: const Offset(1.2, 1.2), end: const Offset(1, 1), duration: 600.ms),
-            const SizedBox(height: 16),
-            const Text('Amazing Focus!', 
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 28, color: AppColors.accent)),
-          ],
-        ),
-        content: Text(
-          'You found $_score targets in $_secondsElapsed seconds!',
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 16),
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.success,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      builder:
+          (_) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
             ),
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context); // Go back to hub
-            },
-            child: const Text('Finish Game', style: TextStyle(fontWeight: FontWeight.bold)),
+            title: Column(
+              children: [
+                const Icon(
+                      Icons.center_focus_strong_rounded,
+                      color: AppColors.accent,
+                      size: 64,
+                    )
+                    .animate(onPlay: (controller) => controller.repeat())
+                    .scale(duration: 600.ms, curve: Curves.easeInOut)
+                    .then()
+                    .scale(
+                      begin: const Offset(1.2, 1.2),
+                      end: const Offset(1, 1),
+                      duration: 600.ms,
+                    ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Amazing Focus!',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 28,
+                    color: AppColors.accent,
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              'You found $_score targets in $_secondsElapsed seconds!',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 16),
+            ),
+            actionsAlignment: MainAxisAlignment.center,
+            actions: [
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.pop(context); // Go back to hub
+                },
+                child: const Text(
+                  'Finish Game',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -153,8 +193,14 @@ class _AttentionGameScreenState extends State<AttentionGameScreen> {
           Center(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text('Round $_round/$_maxRounds',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.textSecondary)),
+              child: Text(
+                'Round $_round/$_maxRounds',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  color: AppColors.textSecondary,
+                ),
+              ),
             ),
           ),
         ],
@@ -165,25 +211,48 @@ class _AttentionGameScreenState extends State<AttentionGameScreen> {
             Padding(
               padding: const EdgeInsets.all(20),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.accent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.accent.withValues(alpha: 0.2), width: 2),
+                  border: Border.all(
+                    color: AppColors.accent.withValues(alpha: 0.2),
+                    width: 2,
+                  ),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Row(
                       children: [
-                        const Text('Find all: ', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+                        const Text(
+                          'Find all: ',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                         Text(_targetEmoji, style: const TextStyle(fontSize: 36))
-                            .animate(onPlay: (controller) => controller.repeat())
-                            .shimmer(duration: 2.seconds, color: Colors.white.withValues(alpha: 0.5)),
+                            .animate(
+                              onPlay: (controller) => controller.repeat(),
+                            )
+                            .shimmer(
+                              duration: 2.seconds,
+                              color: Colors.white.withValues(alpha: 0.5),
+                            ),
                       ],
                     ),
-                    Text('$_score',
-                        style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: AppColors.accent)),
+                    Text(
+                      '$_score',
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.accent,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -204,31 +273,42 @@ class _AttentionGameScreenState extends State<AttentionGameScreen> {
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 300),
                       decoration: BoxDecoration(
-                        color: isFound
-                            ? AppColors.success.withValues(alpha: 0.2)
-                            : Theme.of(context).cardColor,
+                        color:
+                            isFound
+                                ? AppColors.success.withValues(alpha: 0.2)
+                                : Theme.of(context).cardColor,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: isFound
-                              ? AppColors.success.withValues(alpha: 0.5)
-                              : Theme.of(context).dividerColor,
+                          color:
+                              isFound
+                                  ? AppColors.success.withValues(alpha: 0.5)
+                                  : Theme.of(context).dividerColor,
                           width: isFound ? 2 : 1,
                         ),
-                        boxShadow: isFound ? [] : [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                        boxShadow:
+                            isFound
+                                ? []
+                                : [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                       ),
                       child: Center(
                         child: AnimatedSwitcher(
                           duration: const Duration(milliseconds: 200),
-                          transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child),
-                          child: Text(_grid[i],
-                              key: ValueKey(_grid[i]),
-                              style: const TextStyle(fontSize: 32)),
+                          transitionBuilder:
+                              (child, animation) => ScaleTransition(
+                                scale: animation,
+                                child: child,
+                              ),
+                          child: Text(
+                            _grid[i],
+                            key: ValueKey(_grid[i]),
+                            style: const TextStyle(fontSize: 32),
+                          ),
                         ),
                       ),
                     ),

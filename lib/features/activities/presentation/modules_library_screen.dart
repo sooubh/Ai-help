@@ -24,12 +24,16 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
   final _firebaseService = FirebaseService();
 
   // Sample categories for filters
-  static final _categories = [
-    'All',
-    ...TherapyModulesRegistry.categories,
-  ];
+  static final _categories = ['All', ...TherapyModulesRegistry.categories];
 
-  static const _difficulties = ['All', 'Beginner', 'Easy', 'Medium', 'Hard', 'Expert'];
+  static const _difficulties = [
+    'All',
+    'Beginner',
+    'Easy',
+    'Medium',
+    'Hard',
+    'Expert',
+  ];
 
   @override
   void initState() {
@@ -63,23 +67,24 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
 
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
-      modules = modules
-          .where((m) =>
-              m.title.toLowerCase().contains(q) ||
-              m.objective.toLowerCase().contains(q))
-          .toList();
+      modules =
+          modules
+              .where(
+                (m) =>
+                    m.title.toLowerCase().contains(q) ||
+                    m.objective.toLowerCase().contains(q),
+              )
+              .toList();
     }
 
     if (_selectedCategory != 'All') {
-      modules = modules
-          .where((m) => m.skillCategory == _selectedCategory)
-          .toList();
+      modules =
+          modules.where((m) => m.skillCategory == _selectedCategory).toList();
     }
 
     if (_selectedDifficulty != 'All') {
       final diffLevel = _difficulties.indexOf(_selectedDifficulty);
-      modules =
-          modules.where((m) => m.difficultyLevel == diffLevel).toList();
+      modules = modules.where((m) => m.difficultyLevel == diffLevel).toList();
     }
 
     if (_showBookmarksOnly) {
@@ -122,21 +127,25 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
               decoration: InputDecoration(
                 hintText: 'Search activities...',
                 prefixIcon: const Icon(Icons.search_rounded, size: 22),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear_rounded, size: 20),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _searchQuery = '');
-                        },
-                      )
-                    : null,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                suffixIcon:
+                    _searchQuery.isNotEmpty
+                        ? IconButton(
+                          icon: const Icon(Icons.clear_rounded, size: 20),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                          },
+                        )
+                        : null,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 filled: true,
-                fillColor: isDark
-                    ? AppColors.darkSurfaceVariant
-                    : AppColors.surfaceVariant,
+                fillColor:
+                    isDark
+                        ? AppColors.darkSurfaceVariant
+                        : AppColors.surfaceVariant,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                   borderSide: BorderSide.none,
@@ -160,24 +169,28 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
                   onTap: () => setState(() => _selectedCategory = cat),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppColors.primary
-                          : (isDark
-                              ? AppColors.darkSurfaceVariant
-                              : AppColors.surfaceVariant),
+                      color:
+                          isSelected
+                              ? AppColors.primary
+                              : (isDark
+                                  ? AppColors.darkSurfaceVariant
+                                  : AppColors.surfaceVariant),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       cat,
                       style: TextStyle(
-                        color: isSelected
-                            ? Colors.white
-                            : (isDark
-                                ? AppColors.darkTextSecondary
-                                : AppColors.textSecondary),
+                        color:
+                            isSelected
+                                ? Colors.white
+                                : (isDark
+                                    ? AppColors.darkTextSecondary
+                                    : AppColors.textSecondary),
                         fontSize: 13,
                         fontWeight:
                             isSelected ? FontWeight.w600 : FontWeight.w400,
@@ -196,9 +209,9 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
               children: [
                 Text(
                   'Difficulty:',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -212,37 +225,43 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
                         final diff = _difficulties[index];
                         final isSelected = _selectedDifficulty == diff;
                         return GestureDetector(
-                          onTap: () =>
-                              setState(() => _selectedDifficulty = diff),
+                          onTap:
+                              () => setState(() => _selectedDifficulty = diff),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 4),
+                              horizontal: 12,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppColors.accent.withValues(alpha: 0.15)
-                                  : Colors.transparent,
+                              color:
+                                  isSelected
+                                      ? AppColors.accent.withValues(alpha: 0.15)
+                                      : Colors.transparent,
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: isSelected
-                                    ? AppColors.accent
-                                    : (isDark
-                                        ? AppColors.darkBorder
-                                        : AppColors.divider),
+                                color:
+                                    isSelected
+                                        ? AppColors.accent
+                                        : (isDark
+                                            ? AppColors.darkBorder
+                                            : AppColors.divider),
                                 width: isSelected ? 1.5 : 1,
                               ),
                             ),
                             child: Text(
                               diff,
                               style: TextStyle(
-                                color: isSelected
-                                    ? AppColors.accent
-                                    : (isDark
-                                        ? AppColors.darkTextTertiary
-                                        : AppColors.textTertiary),
+                                color:
+                                    isSelected
+                                        ? AppColors.accent
+                                        : (isDark
+                                            ? AppColors.darkTextTertiary
+                                            : AppColors.textTertiary),
                                 fontSize: 12,
-                                fontWeight: isSelected
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
+                                fontWeight:
+                                    isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
                               ),
                             ),
                           ),
@@ -271,29 +290,32 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
 
           // Modules list
           Expanded(
-            child: filtered.isEmpty
-                ? _buildEmptyState()
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                    itemCount: filtered.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final module = filtered[index];
-                      return _ModuleCard(
-                        module: module,
-                        index: index,
-                        isBookmarked: _bookmarkedIds.contains(module.id),
-                        onBookmark: () => _toggleBookmark(module.id),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => TherapyActivityScreen(
-                                module: module),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+            child:
+                filtered.isEmpty
+                    ? _buildEmptyState()
+                    : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final module = filtered[index];
+                        return _ModuleCard(
+                          module: module,
+                          index: index,
+                          isBookmarked: _bookmarkedIds.contains(module.id),
+                          onBookmark: () => _toggleBookmark(module.id),
+                          onTap:
+                              () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (_) =>
+                                          TherapyActivityScreen(module: module),
+                                ),
+                              ),
+                        );
+                      },
+                    ),
           ),
         ],
       ),
@@ -305,14 +327,17 @@ class _ModulesLibraryScreenState extends State<ModulesLibraryScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.search_off_rounded,
-              size: 64, color: AppColors.textTertiary),
+          Icon(
+            Icons.search_off_rounded,
+            size: 64,
+            color: AppColors.textTertiary,
+          ),
           const SizedBox(height: 16),
           Text(
             'No activities found',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppColors.textSecondary,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 4),
           Text(
@@ -356,20 +381,25 @@ class _ModuleCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
+          color:
+              isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
           borderRadius: BorderRadius.circular(18),
-          boxShadow: isDark
-              ? []
-              : [
-                  BoxShadow(
-                    color: categoryColor.withValues(alpha: 0.08),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-          border: isDark
-              ? Border.all(color: AppColors.darkBorder.withValues(alpha: 0.3))
-              : null,
+          boxShadow:
+              isDark
+                  ? []
+                  : [
+                    BoxShadow(
+                      color: categoryColor.withValues(alpha: 0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+          border:
+              isDark
+                  ? Border.all(
+                    color: AppColors.darkBorder.withValues(alpha: 0.3),
+                  )
+                  : null,
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -398,8 +428,8 @@ class _ModuleCard extends StatelessWidget {
                   Text(
                     module.title,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      fontWeight: FontWeight.w700,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -414,10 +444,7 @@ class _ModuleCard extends StatelessWidget {
                   // Tags row
                   Row(
                     children: [
-                      _Tag(
-                        label: module.skillCategory,
-                        color: categoryColor,
-                      ),
+                      _Tag(label: module.skillCategory, color: categoryColor),
                       const SizedBox(width: 6),
                       _Tag(
                         label: module.difficultyLabel,
@@ -444,7 +471,8 @@ class _ModuleCard extends StatelessWidget {
                         ? Icons.bookmark_rounded
                         : Icons.bookmark_outline_rounded,
                     size: 22,
-                    color: isBookmarked ? AppColors.gold : AppColors.textTertiary,
+                    color:
+                        isBookmarked ? AppColors.gold : AppColors.textTertiary,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -459,9 +487,9 @@ class _ModuleCard extends StatelessWidget {
         ),
       ),
     ).animate().fadeIn(
-          delay: Duration(milliseconds: 50 * index),
-          duration: 400.ms,
-        );
+      delay: Duration(milliseconds: 50 * index),
+      duration: 400.ms,
+    );
   }
 
   Color _getCategoryColor(String category) {
@@ -569,5 +597,3 @@ class _Tag extends StatelessWidget {
     );
   }
 }
-
-

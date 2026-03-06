@@ -29,7 +29,7 @@ class _ShapeMatcherGameScreenState extends State<ShapeMatcherGameScreen> {
   DateTime? _startTime;
   int _score = 0;
   final int _targetScore = 4;
-  
+
   final List<_ShapeItem> _shapes = [
     _ShapeItem(ShapeType.circle, Colors.redAccent, Icons.circle),
     _ShapeItem(ShapeType.square, Colors.blueAccent, Icons.square),
@@ -66,7 +66,7 @@ class _ShapeMatcherGameScreenState extends State<ShapeMatcherGameScreen> {
     } catch (_) {
       // Ignore if sound missing
     }
-    
+
     setState(() {
       _matchedShapes.add(type);
       _draggableShapes.removeWhere((s) => s.type == type);
@@ -87,40 +87,46 @@ class _ShapeMatcherGameScreenState extends State<ShapeMatcherGameScreen> {
       score: _score,
       maxScore: _targetScore,
       totalMoves: _score,
-      durationSeconds: DateTime.now().difference(_startTime ?? DateTime.now()).inSeconds,
+      durationSeconds:
+          DateTime.now().difference(_startTime ?? DateTime.now()).inSeconds,
       completedAt: DateTime.now(),
     );
     service.logGameSession(session);
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('🌟 Fantastic Object Matching!'),
-        content: const Text('You sorted all the shapes perfectly!'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _startGame();
-            },
-            child: const Text('Play Again'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      builder:
+          (context) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
             ),
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text('Done'),
+            title: const Text('🌟 Fantastic Object Matching!'),
+            content: const Text('You sorted all the shapes perfectly!'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _startGame();
+                },
+                child: const Text('Play Again'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.pop(context);
+                },
+                child: const Text('Done'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -130,24 +136,38 @@ class _ShapeMatcherGameScreenState extends State<ShapeMatcherGameScreen> {
     return DragTarget<_ShapeItem>(
       builder: (context, candidateData, rejectedData) {
         return Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            color: isMatched ? shape.color : Colors.transparent,
-            border: Border.all(
-              color: isMatched ? shape.color : shape.color.withValues(alpha: 0.5),
-              width: 4,
-              style: isMatched ? BorderStyle.solid : BorderStyle.solid,
-            ),
-            borderRadius: BorderRadius.circular(shape.type == ShapeType.circle ? 40 : 16),
-          ),
-          alignment: Alignment.center,
-          child: Icon(
-            shape.icon,
-            color: isMatched ? Colors.white : shape.color.withValues(alpha: 0.3),
-            size: 40,
-          ),
-        ).animate(target: isMatched ? 1 : 0).scale(begin: const Offset(1, 1), end: const Offset(1.1, 1.1), duration: 200.ms);
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: isMatched ? shape.color : Colors.transparent,
+                border: Border.all(
+                  color:
+                      isMatched
+                          ? shape.color
+                          : shape.color.withValues(alpha: 0.5),
+                  width: 4,
+                  style: isMatched ? BorderStyle.solid : BorderStyle.solid,
+                ),
+                borderRadius: BorderRadius.circular(
+                  shape.type == ShapeType.circle ? 40 : 16,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                shape.icon,
+                color:
+                    isMatched
+                        ? Colors.white
+                        : shape.color.withValues(alpha: 0.3),
+                size: 40,
+              ),
+            )
+            .animate(target: isMatched ? 1 : 0)
+            .scale(
+              begin: const Offset(1, 1),
+              end: const Offset(1.1, 1.1),
+              duration: 200.ms,
+            );
       },
       onWillAccept: (data) => data?.type == shape.type,
       onAccept: (data) => _handleMatch(shape.type),
@@ -165,17 +185,25 @@ class _ShapeMatcherGameScreenState extends State<ShapeMatcherGameScreen> {
         color: Colors.transparent,
         child: Icon(shape.icon, color: shape.color, size: 85),
       ),
-      childWhenDragging: Icon(shape.icon, color: shape.color.withValues(alpha: 0.3), size: 70),
+      childWhenDragging: Icon(
+        shape.icon,
+        color: shape.color.withValues(alpha: 0.3),
+        size: 70,
+      ),
       child: Icon(shape.icon, color: shape.color, size: 70)
           .animate(onPlay: (c) => c.repeat(reverse: true))
-          .scale(begin: const Offset(1, 1), end: const Offset(1.05, 1.05), duration: 800.ms),
+          .scale(
+            begin: const Offset(1, 1),
+            end: const Offset(1.05, 1.05),
+            duration: 800.ms,
+          ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Shape Matcher'),
@@ -186,9 +214,10 @@ class _ShapeMatcherGameScreenState extends State<ShapeMatcherGameScreen> {
         width: double.infinity,
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: isDark 
-                ? [AppColors.darkBackground, const Color(0xFF1E1B4B)]
-                : [const Color(0xFFEEF2FF), Colors.white],
+            colors:
+                isDark
+                    ? [AppColors.darkBackground, const Color(0xFF1E1B4B)]
+                    : [const Color(0xFFEEF2FF), Colors.white],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -198,9 +227,9 @@ class _ShapeMatcherGameScreenState extends State<ShapeMatcherGameScreen> {
             const SizedBox(height: 20),
             Text(
               'Drag the shapes to their outlines!',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
             Text(
@@ -226,10 +255,17 @@ class _ShapeMatcherGameScreenState extends State<ShapeMatcherGameScreen> {
 
             // Draggables (Bottom Row)
             Container(
-              padding: const EdgeInsets.only(top: 40, bottom: 60, left: 24, right: 24),
+              padding: const EdgeInsets.only(
+                top: 40,
+                bottom: 60,
+                left: 24,
+                right: 24,
+              ),
               decoration: BoxDecoration(
                 color: isDark ? AppColors.darkSurface : Colors.white,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(40)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(40),
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.05),

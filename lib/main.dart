@@ -63,7 +63,12 @@ void main() async {
   // Global Error Handlers
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
-    AppLogger.error('FlutterError', details.exceptionAsString(), details.exception, details.stack);
+    AppLogger.error(
+      'FlutterError',
+      details.exceptionAsString(),
+      details.exception,
+      details.stack,
+    );
   };
 
   PlatformDispatcher.instance.onError = (error, stack) {
@@ -80,17 +85,28 @@ void main() async {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 48),
+            const Icon(
+              Icons.error_outline_rounded,
+              color: AppColors.error,
+              size: 48,
+            ),
             const SizedBox(height: 16),
             const Text(
-              'Oops! Something went wrong.', 
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)
+              'Oops! Something went wrong.',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
-              details.exceptionAsString(), 
+              details.exceptionAsString(),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 14, color: AppColors.textSecondary)
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+              ),
             ),
           ],
         ),
@@ -164,17 +180,17 @@ void main() async {
       MaterialApp(
         home: Scaffold(
           body: Center(
-            child: Text('Startup Error: $e\n\nPlease restart the app.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.red)),
+            child: Text(
+              'Startup Error: $e\n\nPlease restart the app.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.red),
+            ),
           ),
         ),
       ),
     );
   }
-
 }
-
 
 class CareAiApp extends StatefulWidget {
   const CareAiApp({super.key});
@@ -223,10 +239,7 @@ class _CareAiAppState extends State<CareAiApp> with WidgetsBindingObserver {
       themeMode: themeProvider.themeMode,
       builder: (context, child) {
         return Stack(
-          children: [
-            if (child != null) child,
-            const GlobalVoiceOverlay(),
-          ],
+          children: [if (child != null) child, const GlobalVoiceOverlay()],
         );
       },
 

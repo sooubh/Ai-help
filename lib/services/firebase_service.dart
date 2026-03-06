@@ -24,17 +24,38 @@ class FirebaseService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
   /// Centralized exception handler for Firebase routines
-  Future<T> _guard<T>(Future<T> Function() operation, {String operationName = 'Firebase'}) async {
+  Future<T> _guard<T>(
+    Future<T> Function() operation, {
+    String operationName = 'Firebase',
+  }) async {
     try {
       return await operation();
     } on FirebaseAuthException catch (e) {
-      AppLogger.error('Auth ($operationName)', e.message ?? 'Unknown Auth Error', e, StackTrace.current);
+      AppLogger.error(
+        'Auth ($operationName)',
+        e.message ?? 'Unknown Auth Error',
+        e,
+        StackTrace.current,
+      );
       throw AuthException(e.message ?? 'Authentication failed', code: e.code);
     } on FirebaseException catch (e) {
-      AppLogger.error('Firestore ($operationName)', e.message ?? 'Unknown DB Error', e, StackTrace.current);
-      throw DataException(e.message ?? 'A database error occurred', originalError: e);
+      AppLogger.error(
+        'Firestore ($operationName)',
+        e.message ?? 'Unknown DB Error',
+        e,
+        StackTrace.current,
+      );
+      throw DataException(
+        e.message ?? 'A database error occurred',
+        originalError: e,
+      );
     } catch (e, stack) {
-      AppLogger.error('FirebaseService ($operationName)', 'Unexpected Error', e, stack);
+      AppLogger.error(
+        'FirebaseService ($operationName)',
+        'Unexpected Error',
+        e,
+        stack,
+      );
       throw DataException('An unexpected error occurred: $e', originalError: e);
     }
   }
@@ -97,7 +118,10 @@ class FirebaseService {
           createdAt: DateTime.now(),
           lastLoginAt: DateTime.now(),
         );
-        await _firestore.collection('users').doc(user.uid).set(userModel.toMap());
+        await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .set(userModel.toMap());
       }
       return user;
     }, operationName: 'signUp');
@@ -216,7 +240,10 @@ class FirebaseService {
         return UserModel.fromMap(doc.data()!, uid);
       } catch (e) {
         // Fallback to cache if network fails
-        final doc = await _firestore.collection('users').doc(uid).get(const GetOptions(source: Source.cache));
+        final doc = await _firestore
+            .collection('users')
+            .doc(uid)
+            .get(const GetOptions(source: Source.cache));
         if (!doc.exists || doc.data() == null) return null;
         return UserModel.fromMap(doc.data()!, uid);
       }
@@ -239,7 +266,10 @@ class FirebaseService {
       final uid = currentUser?.uid;
       if (uid == null) throw const AuthException('User not authenticated');
 
-      final collection = _firestore.collection('users').doc(uid).collection('children');
+      final collection = _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('children');
 
       if (profile.id != null) {
         await collection.doc(profile.id).set(profile.toMap());
@@ -258,13 +288,16 @@ class FirebaseService {
       if (uid == null) return [];
 
       try {
-        final snapshot = await _firestore
-            .collection('users')
-            .doc(uid)
-            .collection('children')
-            .orderBy('createdAt', descending: false)
-            .get();
-        return snapshot.docs.map((doc) => ChildProfileModel.fromMap(doc.data(), doc.id)).toList();
+        final snapshot =
+            await _firestore
+                .collection('users')
+                .doc(uid)
+                .collection('children')
+                .orderBy('createdAt', descending: false)
+                .get();
+        return snapshot.docs
+            .map((doc) => ChildProfileModel.fromMap(doc.data(), doc.id))
+            .toList();
       } catch (e) {
         // Fallback to cache
         final snapshot = await _firestore
@@ -273,7 +306,9 @@ class FirebaseService {
             .collection('children')
             .orderBy('createdAt', descending: false)
             .get(const GetOptions(source: Source.cache));
-        return snapshot.docs.map((doc) => ChildProfileModel.fromMap(doc.data(), doc.id)).toList();
+        return snapshot.docs
+            .map((doc) => ChildProfileModel.fromMap(doc.data(), doc.id))
+            .toList();
       }
     }, operationName: 'getChildProfiles');
   }
@@ -286,11 +321,22 @@ class FirebaseService {
 
       if (childId != null) {
         try {
-          final doc = await _firestore.collection('users').doc(uid).collection('children').doc(childId).get();
+          final doc =
+              await _firestore
+                  .collection('users')
+                  .doc(uid)
+                  .collection('children')
+                  .doc(childId)
+                  .get();
           if (!doc.exists || doc.data() == null) return null;
           return ChildProfileModel.fromMap(doc.data()!, doc.id);
         } catch (e) {
-          final doc = await _firestore.collection('users').doc(uid).collection('children').doc(childId).get(const GetOptions(source: Source.cache));
+          final doc = await _firestore
+              .collection('users')
+              .doc(uid)
+              .collection('children')
+              .doc(childId)
+              .get(const GetOptions(source: Source.cache));
           if (!doc.exists || doc.data() == null) return null;
           return ChildProfileModel.fromMap(doc.data()!, doc.id);
         }
@@ -690,8 +736,10 @@ class FirebaseService {
   // ─── Therapy Sessions ──────────────────────────────────
 
   /// Save a completed therapy session.
-  Future<void> saveTherapySession(TherapySessionModel session,
-      [String? childId]) async {
+  Future<void> saveTherapySession(
+    TherapySessionModel session, [
+    String? childId,
+  ]) async {
     final uid = currentUser?.uid;
     if (uid == null) throw Exception('User not authenticated');
 
@@ -746,8 +794,12 @@ class FirebaseService {
     final snapshot = await query.limit(limit).get();
 
     return snapshot.docs
-        .map((doc) => TherapySessionModel.fromMap(
-            doc.data() as Map<String, dynamic>, doc.id))
+        .map(
+          (doc) => TherapySessionModel.fromMap(
+            doc.data() as Map<String, dynamic>,
+            doc.id,
+          ),
+        )
         .toList();
   }
 
@@ -756,11 +808,12 @@ class FirebaseService {
     final uid = currentUser?.uid;
     if (uid == null) return {};
 
-    final snapshot = await _firestore
-        .collection('users')
-        .doc(uid)
-        .collection('therapy_sessions')
-        .get();
+    final snapshot =
+        await _firestore
+            .collection('users')
+            .doc(uid)
+            .collection('therapy_sessions')
+            .get();
 
     return snapshot.docs
         .map((doc) => doc.data()['moduleId'] as String? ?? '')
@@ -769,8 +822,7 @@ class FirebaseService {
   }
 
   /// Build a comprehensive therapy history summary for AI analysis.
-  Future<Map<String, dynamic>> getChildTherapyHistory(
-      [String? childId]) async {
+  Future<Map<String, dynamic>> getChildTherapyHistory([String? childId]) async {
     final sessions = await getTherapySessions(limit: 100);
     final weeklyStats = await getWeeklyStats();
     final skillProg = await getSkillProgress();
@@ -784,8 +836,7 @@ class FirebaseService {
     }
     final avgScores = <String, double>{};
     for (final entry in categoryScores.entries) {
-      final avg =
-          entry.value.reduce((a, b) => a + b) / entry.value.length;
+      final avg = entry.value.reduce((a, b) => a + b) / entry.value.length;
       avgScores[entry.key] = double.parse(avg.toStringAsFixed(1));
     }
 
@@ -795,15 +846,18 @@ class FirebaseService {
       'weeklyStats': weeklyStats,
       'skillProgress': skillProg,
       'averageScoresByCategory': avgScores,
-      'recentSessions': sessions
-          .take(10)
-          .map((s) => {
-                'module': s.moduleTitle,
-                'category': s.skillCategory,
-                'score': '${s.scorePercent.toStringAsFixed(0)}%',
-                'difficulty': s.difficultyLevel,
-              })
-          .toList(),
+      'recentSessions':
+          sessions
+              .take(10)
+              .map(
+                (s) => {
+                  'module': s.moduleTitle,
+                  'category': s.skillCategory,
+                  'score': '${s.scorePercent.toStringAsFixed(0)}%',
+                  'difficulty': s.difficultyLevel,
+                },
+              )
+              .toList(),
     };
   }
 
@@ -1030,11 +1084,12 @@ class FirebaseService {
     final uid = currentUser?.uid;
     if (uid == null) return [];
 
-    final snapshot = await _firestore
-        .collection('doctor_requests')
-        .where('doctorId', isEqualTo: uid)
-        .where('status', isEqualTo: 'pending')
-        .get();
+    final snapshot =
+        await _firestore
+            .collection('doctor_requests')
+            .where('doctorId', isEqualTo: uid)
+            .where('status', isEqualTo: 'pending')
+            .get();
 
     return snapshot.docs.map((doc) {
       final data = doc.data();
@@ -1046,10 +1101,9 @@ class FirebaseService {
   /// Respond to a patient connection request.
   Future<void> respondToDoctorRequest(String requestId, bool approve) async {
     final status = approve ? 'approved' : 'declined';
-    await _firestore
-        .collection('doctor_requests')
-        .doc(requestId)
-        .update({'status': status});
+    await _firestore.collection('doctor_requests').doc(requestId).update({
+      'status': status,
+    });
   }
 
   /// Fetch the current user's profile as a DoctorModel.

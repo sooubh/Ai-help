@@ -16,7 +16,7 @@ class EnvConfig {
     if (dotenv.isInitialized) {
       key = dotenv.env['GEMINI_API_KEY'] ?? '';
     }
-    
+
     if (key.isEmpty) {
       key = const String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
     }

@@ -63,10 +63,7 @@ class AppTheme {
           fontWeight: FontWeight.w600,
           color: AppColors.textPrimary,
         ),
-        iconTheme: const IconThemeData(
-          color: AppColors.textPrimary,
-          size: 24,
-        ),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary, size: 24),
       ),
 
       // Text Theme
@@ -153,10 +150,7 @@ class AppTheme {
           fontSize: 14,
           color: AppColors.textTertiary,
         ),
-        errorStyle: GoogleFonts.poppins(
-          fontSize: 12,
-          color: AppColors.error,
-        ),
+        errorStyle: GoogleFonts.poppins(fontSize: 12, color: AppColors.error),
         prefixIconColor: AppColors.textSecondary,
         suffixIconColor: AppColors.textSecondary,
       ),
@@ -222,9 +216,7 @@ class AppTheme {
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(radiusXL),
-          ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(radiusXL)),
         ),
       ),
 
@@ -403,10 +395,7 @@ class AppTheme {
           fontSize: 14,
           color: AppColors.darkTextTertiary,
         ),
-        errorStyle: GoogleFonts.poppins(
-          fontSize: 12,
-          color: AppColors.error,
-        ),
+        errorStyle: GoogleFonts.poppins(fontSize: 12, color: AppColors.error),
         prefixIconColor: AppColors.darkTextSecondary,
         suffixIconColor: AppColors.darkTextSecondary,
       ),
@@ -475,9 +464,7 @@ class AppTheme {
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: AppColors.darkSurface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(radiusXL),
-          ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(radiusXL)),
         ),
       ),
 
@@ -578,11 +565,7 @@ class AppTheme {
         fontWeight: FontWeight.w500,
         color: primary,
       ),
-      bodyLarge: GoogleFonts.poppins(
-        fontSize: 16,
-        color: primary,
-        height: 1.5,
-      ),
+      bodyLarge: GoogleFonts.poppins(fontSize: 16, color: primary, height: 1.5),
       bodyMedium: GoogleFonts.poppins(
         fontSize: 14,
         color: secondary,

@@ -10,23 +10,25 @@ class BreathingBubbleGameScreen extends StatefulWidget {
   const BreathingBubbleGameScreen({super.key});
 
   @override
-  State<BreathingBubbleGameScreen> createState() => _BreathingBubbleGameScreenState();
+  State<BreathingBubbleGameScreen> createState() =>
+      _BreathingBubbleGameScreenState();
 }
 
 enum BreathPhase { idle, inhale, hold, exhale }
 
-class _BreathingBubbleGameScreenState extends State<BreathingBubbleGameScreen> with SingleTickerProviderStateMixin {
+class _BreathingBubbleGameScreenState extends State<BreathingBubbleGameScreen>
+    with SingleTickerProviderStateMixin {
   BreathPhase _phase = BreathPhase.idle;
   int _cyclesCompleted = 0;
   final int _targetCycles = 5;
   String _instructionText = "Tap start to begin breathing";
   double _bubbleScale = 1.0;
-  
+
   // Timings
   final int _inhaleTimeMs = 4000;
   final int _holdTimeMs = 4000;
   final int _exhaleTimeMs = 4000;
-  
+
   DateTime? _startTime;
   bool _isDisposed = false;
 
@@ -66,10 +68,10 @@ class _BreathingBubbleGameScreenState extends State<BreathingBubbleGameScreen> w
       _phase = BreathPhase.inhale;
       _instructionText = "Breathe In...";
     });
-    
+
     _animController.duration = Duration(milliseconds: _inhaleTimeMs);
     await _animController.forward();
-    
+
     // Hold
     if (_isDisposed) return;
     setState(() {
@@ -84,7 +86,7 @@ class _BreathingBubbleGameScreenState extends State<BreathingBubbleGameScreen> w
       _phase = BreathPhase.exhale;
       _instructionText = "Breathe Out...";
     });
-    
+
     _animController.duration = Duration(milliseconds: _exhaleTimeMs);
     await _animController.reverse();
 
@@ -118,7 +120,8 @@ class _BreathingBubbleGameScreenState extends State<BreathingBubbleGameScreen> w
       score: _targetCycles,
       maxScore: _targetCycles,
       totalMoves: _targetCycles,
-      durationSeconds: DateTime.now().difference(_startTime ?? DateTime.now()).inSeconds,
+      durationSeconds:
+          DateTime.now().difference(_startTime ?? DateTime.now()).inSeconds,
       completedAt: DateTime.now(),
     );
     await service.logGameSession(session);
@@ -126,10 +129,14 @@ class _BreathingBubbleGameScreenState extends State<BreathingBubbleGameScreen> w
 
   Color _getBubbleColor() {
     switch (_phase) {
-      case BreathPhase.inhale: return AppColors.primary;
-      case BreathPhase.hold: return AppColors.accent;
-      case BreathPhase.exhale: return const Color(0xFF10B981); // Calming green
-      default: return AppColors.primary.withValues(alpha: 0.5);
+      case BreathPhase.inhale:
+        return AppColors.primary;
+      case BreathPhase.hold:
+        return AppColors.accent;
+      case BreathPhase.exhale:
+        return const Color(0xFF10B981); // Calming green
+      default:
+        return AppColors.primary.withValues(alpha: 0.5);
     }
   }
 
@@ -148,7 +155,11 @@ class _BreathingBubbleGameScreenState extends State<BreathingBubbleGameScreen> w
           children: [
             Text(
               "Cycle $_cyclesCompleted of $_targetCycles",
-              style: const TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 60),
 
@@ -179,19 +190,22 @@ class _BreathingBubbleGameScreenState extends State<BreathingBubbleGameScreen> w
                 );
               },
             ),
-            
+
             const SizedBox(height: 80),
 
             // Instruction Text
             Text(
-              _instructionText,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2,
-              ),
-            ).animate(key: ValueKey(_instructionText)).fadeIn(duration: 400.ms).slideY(begin: 0.2),
+                  _instructionText,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 2,
+                  ),
+                )
+                .animate(key: ValueKey(_instructionText))
+                .fadeIn(duration: 400.ms)
+                .slideY(begin: 0.2),
 
             const SizedBox(height: 40),
 
@@ -203,11 +217,16 @@ class _BreathingBubbleGameScreenState extends State<BreathingBubbleGameScreen> w
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 40,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
               ).animate().fadeIn(delay: 400.ms),
-              
+
             if (_phase == BreathPhase.idle && _cyclesCompleted >= _targetCycles)
               ElevatedButton.icon(
                 onPressed: () => Navigator.pop(context),
@@ -216,8 +235,13 @@ class _BreathingBubbleGameScreenState extends State<BreathingBubbleGameScreen> w
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF10B981),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 40,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
               ).animate().fadeIn(delay: 400.ms),
           ],

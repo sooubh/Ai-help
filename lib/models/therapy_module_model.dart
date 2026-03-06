@@ -75,8 +75,7 @@ class TherapyModuleModel {
       targetSkills: List<String>.from(map['targetSkills'] ?? []),
       prerequisites: List<String>.from(map['prerequisites'] ?? []),
       adaptiveDifficultyEnabled: map['adaptiveDifficultyEnabled'] ?? true,
-      createdAt:
-          (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 

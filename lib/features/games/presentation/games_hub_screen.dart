@@ -55,10 +55,11 @@ class _GameCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => game.screen),
-      ),
+      onTap:
+          () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => game.screen),
+          ),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -71,9 +72,7 @@ class _GameCard extends StatelessWidget {
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: game.color.withValues(alpha: 0.2),
-          ),
+          border: Border.all(color: game.color.withValues(alpha: 0.2)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -90,9 +89,9 @@ class _GameCard extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               game.title,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
               textAlign: TextAlign.center,
               maxLines: 2,
             ),
@@ -108,17 +107,17 @@ class _GameCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               game.ageRange,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 10,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontSize: 10),
             ),
           ],
         ),
       ),
     ).animate().fadeIn(
-          delay: Duration(milliseconds: 80 * index),
-          duration: 400.ms,
-        );
+      delay: Duration(milliseconds: 80 * index),
+      duration: 400.ms,
+    );
   }
 }
 

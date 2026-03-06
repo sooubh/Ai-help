@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'dart:math' as math;
@@ -6,10 +7,7 @@ import 'dart:math' as math;
 import '../../../core/constants/app_colors.dart';
 import '../../../models/voice_session_model.dart';
 import '../../../services/voice_assistant_service.dart';
-import 'voice_assistant_screen.dart';
 
-/// A floating overlay that displays the voice assistant status
-/// globally across all screens and allows quick interactions.
 class GlobalVoiceOverlay extends StatefulWidget {
   const GlobalVoiceOverlay({super.key});
 
@@ -20,7 +18,7 @@ class GlobalVoiceOverlay extends StatefulWidget {
 class _GlobalVoiceOverlayState extends State<GlobalVoiceOverlay>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
-  
+
   // Custom drag position
   Offset? _offset;
 
@@ -41,143 +39,177 @@ class _GlobalVoiceOverlayState extends State<GlobalVoiceOverlay>
 
   @override
   Widget build(BuildContext context) {
+    // We use context.watch to rebuild when the voice service state changes.
     final voiceService = context.watch<VoiceAssistantService>();
     final session = voiceService.session;
-    
-    // Only show if session is active or processing/listening
-    if (!voiceService.isActive && session?.status != VoiceStatus.speaking && session?.status != VoiceStatus.listening && session?.status != VoiceStatus.processing) {
-      if (session == null || (session.status == VoiceStatus.idle && session.mode == VoiceMode.pushToTalk)) {
-        return const SizedBox.shrink();
-      }
+
+    // Only show if session is active
+    if (!voiceService.isActive) {
+      return const SizedBox.shrink();
     }
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Hide if the user is currently looking at the full voice screen
+    // We check current route using ModalRoute natively inside build,
+    // however for a global Overlay (above MaterialApp), ModalRoute isn't
+    // accessible cleanly. We trust the pill can be used globally.
+    // If the pill overlays the screen, taping it navigates back.
+
     final status = session?.status ?? VoiceStatus.idle;
-    
-    final color = _getStatusColor(status, isDark);
-    final isAnimating = status == VoiceStatus.listening ||
-        status == VoiceStatus.processing ||
-        status == VoiceStatus.speaking;
+    final isListening = status == VoiceStatus.listening;
+    final isProcessing = status == VoiceStatus.processing;
+    final isSpeaking = status == VoiceStatus.speaking;
+
+    Color badgeColor;
+    String statusText;
+
+    if (isListening) {
+      badgeColor = Colors.greenAccent;
+      statusText = "Listening...";
+    } else if (isProcessing) {
+      badgeColor = Colors.blueAccent;
+      statusText = "Thinking...";
+    } else if (isSpeaking) {
+      badgeColor = AppColors.primary;
+      statusText = "AI Speaking";
+    } else {
+      badgeColor = Colors.grey;
+      statusText = "Connecting...";
+    }
 
     return Positioned(
-      left: _offset?.dx ?? MediaQuery.of(context).size.width - 80,
-      top: _offset?.dy ?? MediaQuery.of(context).size.height - 180,
-      child: GestureDetector(
-        onPanUpdate: (details) {
-          setState(() {
-             // Calculate new offset and keep it within bounds
-             final maxDx = MediaQuery.of(context).size.width - 60;
-             final maxDy = MediaQuery.of(context).size.height - 60;
-             
-             double dx = (_offset?.dx ?? (MediaQuery.of(context).size.width - 80)) + details.delta.dx;
-             double dy = (_offset?.dy ?? (MediaQuery.of(context).size.height - 180)) + details.delta.dy;
-             
-             dx = math.max(0, math.min(dx, maxDx));
-             dy = math.max(kToolbarHeight, math.min(dy, maxDy));
-             
-             _offset = Offset(dx, dy);
-          });
-        },
-        onTap: () {
-          // Open the full voice assistant screen
-          Navigator.of(context).pushNamed('/voice-assistant');
-        },
-        onDoubleTap: () {
-           // Quick stop/pause
-           if (voiceService.isActive) {
-             voiceService.stopSession();
-           } else {
-             voiceService.startLiveSession();
-           }
-        },
-        child: AnimatedBuilder(
-          animation: _pulseController,
-          builder: (context, child) {
-            final scale = isAnimating ? 1.0 + (_pulseController.value * 0.15) : 1.0;
-            final opacity = isAnimating ? 0.3 + (_pulseController.value * 0.3) : 0.0;
-            
-            return Material(
-              color: Colors.transparent,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  if (status != VoiceStatus.idle)
-                    Transform.scale(
-                      scale: scale * 1.3,
-                      child: Container(
-                        width: 60,
-                        height: 60,
+      // Default position is bottom right
+      left:
+          _offset?.dx ??
+          (MediaQuery.of(context).size.width -
+              220), // Width approx 200px + margin
+      top:
+          _offset?.dy ??
+          (MediaQuery.of(context).size.height -
+              100), // Height approx 56px + margin
+      child: SafeArea(
+        child: GestureDetector(
+          onPanUpdate: (details) {
+            setState(() {
+              final maxDx = MediaQuery.of(context).size.width - 200;
+              final maxDy = MediaQuery.of(context).size.height - 80;
+
+              double dx =
+                  (_offset?.dx ?? (MediaQuery.of(context).size.width - 220)) +
+                  details.delta.dx;
+              double dy =
+                  (_offset?.dy ?? (MediaQuery.of(context).size.height - 100)) +
+                  details.delta.dy;
+
+              dx = math.max(0, math.min(dx, maxDx));
+              dy = math.max(kToolbarHeight, math.min(dy, maxDy));
+
+              _offset = Offset(dx, dy);
+            });
+          },
+          onTap: () {
+            // Navigate back to the full voice screen
+            // If already there, this will just push another instance which is fine,
+            // or we could use pushNamedAndRemoveUntil.
+            HapticFeedback.lightImpact();
+            Navigator.of(context).pushNamed('/voice-assistant');
+          },
+          child: AnimatedBuilder(
+            animation: _pulseController,
+            builder: (context, child) {
+              final isAnimating = isListening || isSpeaking || isProcessing;
+              double opacity = 1.0;
+              double boxShadowSpread =
+                  isAnimating ? (_pulseController.value * 5) : 1;
+
+              return Material(
+                color: Colors.transparent,
+                child: Container(
+                  width: 200,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade900,
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(
+                      color: badgeColor.withValues(alpha: 0.6),
+                      width: 1.5,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: badgeColor.withValues(alpha: 0.3),
+                        blurRadius: 10,
+                        spreadRadius: boxShadowSpread,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 16),
+                      // Animated Indicator Dot
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        width: 10,
+                        height: 10,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: color.withValues(alpha: opacity * 0.5),
+                          color: badgeColor,
+                          boxShadow: [
+                            BoxShadow(
+                              color: badgeColor.withValues(alpha: 0.8),
+                              blurRadius: isAnimating ? 8 : 0,
+                              spreadRadius: isAnimating ? 2 : 0,
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isDark ? AppColors.darkSurface : AppColors.surface,
-                      boxShadow: [
-                        BoxShadow(
-                          color: color.withValues(alpha: 0.3),
-                          blurRadius: 15,
-                          spreadRadius: 2,
+                      const SizedBox(width: 12),
+                      // Status Text
+                      Expanded(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          child: Text(
+                            statusText,
+                            key: ValueKey(statusText),
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.9),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ],
-                      border: Border.all(
-                        color: color.withValues(alpha: 0.8),
-                        width: 2,
                       ),
-                    ),
-                    child: Center(
-                      child: Icon(
-                        _getStatusIcon(status),
-                        size: 30,
-                        color: color,
+                      // End Call Button
+                      GestureDetector(
+                        onTap: () {
+                          HapticFeedback.heavyImpact();
+                          voiceService.stopSession();
+                        },
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          margin: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.redAccent.withValues(alpha: 0.2),
+                          ),
+                          child: const Center(
+                            child: Icon(
+                              Icons.close_rounded,
+                              color: Colors.redAccent,
+                              size: 24,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-            );
-          },
-        ).animate().fadeIn().scale(),
+                ),
+              );
+            },
+          ).animate().fadeIn().slideY(begin: 0.5),
+        ),
       ),
     );
-  }
-
-  IconData _getStatusIcon(VoiceStatus status) {
-    switch (status) {
-      case VoiceStatus.idle:
-        return Icons.mic_none_rounded;
-      case VoiceStatus.listening:
-        return Icons.mic_rounded;
-      case VoiceStatus.processing:
-        return Icons.graphic_eq_rounded;
-      case VoiceStatus.speaking:
-        return Icons.volume_up_rounded;
-      case VoiceStatus.paused:
-        return Icons.pause_rounded;
-      case VoiceStatus.error:
-        return Icons.error_outline_rounded;
-    }
-  }
-
-  Color _getStatusColor(VoiceStatus status, bool isDark) {
-    switch (status) {
-      case VoiceStatus.idle:
-      case VoiceStatus.paused:
-        return isDark ? AppColors.darkTextTertiary : AppColors.textTertiary;
-      case VoiceStatus.listening:
-        return AppColors.error; 
-      case VoiceStatus.processing:
-        return AppColors.purple; 
-      case VoiceStatus.speaking:
-        return AppColors.primary;
-      case VoiceStatus.error:
-        return AppColors.error;
-    }
   }
 }

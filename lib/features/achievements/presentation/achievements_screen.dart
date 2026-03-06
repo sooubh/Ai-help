@@ -164,30 +164,30 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Achievements')),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 60),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Progress summary
-                  _buildSummaryCard(context, isDark),
-                  const SizedBox(height: 24),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 60),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Progress summary
+                    _buildSummaryCard(context, isDark),
+                    const SizedBox(height: 24),
 
-                  // Badges grid
-                  Text(
-                    'Badges',
-                    style:
-                        Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                  ).animate().fadeIn(duration: 300.ms),
-                  const SizedBox(height: 12),
-                  _buildBadgeGrid(context, isDark),
-                ],
+                    // Badges grid
+                    Text(
+                      'Badges',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ).animate().fadeIn(duration: 300.ms),
+                    const SizedBox(height: 12),
+                    _buildBadgeGrid(context, isDark),
+                  ],
+                ),
               ),
-            ),
     );
   }
 
@@ -222,8 +222,11 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
               color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(18),
             ),
-            child: const Icon(Icons.emoji_events_rounded,
-                color: Colors.white, size: 32),
+            child: const Icon(
+              Icons.emoji_events_rounded,
+              color: Colors.white,
+              size: 32,
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -251,12 +254,9 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
-                    value: badges.isEmpty
-                        ? 0
-                        : unlocked / badges.length,
+                    value: badges.isEmpty ? 0 : unlocked / badges.length,
                     minHeight: 6,
-                    backgroundColor:
-                        Colors.white.withValues(alpha: 0.3),
+                    backgroundColor: Colors.white.withValues(alpha: 0.3),
                     color: Colors.white,
                   ),
                 ),
@@ -289,76 +289,87 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
   }
 
   Widget _buildBadgeCard(
-      BuildContext context, _Badge badge, bool isDark, int index) {
+    BuildContext context,
+    _Badge badge,
+    bool isDark,
+    int index,
+  ) {
     return GestureDetector(
       onTap: () {
         showDialog(
           context: context,
-          builder: (_) => AlertDialog(
-            title: Row(
-              children: [
-                Icon(badge.icon, color: badge.color, size: 24),
-                const SizedBox(width: 8),
-                Expanded(child: Text(badge.title)),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(badge.description),
-                const SizedBox(height: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: badge.progress,
-                    minHeight: 8,
-                    backgroundColor: isDark
-                        ? AppColors.darkSurfaceVariant
-                        : AppColors.surfaceVariant,
-                    color: badge.color,
+          builder:
+              (_) => AlertDialog(
+                title: Row(
+                  children: [
+                    Icon(badge.icon, color: badge.color, size: 24),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text(badge.title)),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(badge.description),
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: badge.progress,
+                        minHeight: 8,
+                        backgroundColor:
+                            isDark
+                                ? AppColors.darkSurfaceVariant
+                                : AppColors.surfaceVariant,
+                        color: badge.color,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      badge.isUnlocked
+                          ? '✅ Unlocked!'
+                          : '${(badge.progress * 100).toInt()}% complete',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close'),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  badge.isUnlocked
-                      ? '✅ Unlocked!'
-                      : '${(badge.progress * 100).toInt()}% complete',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Close'),
+                ],
               ),
-            ],
-          ),
         );
       },
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: isDark
-              ? AppColors.darkCardBackground
-              : AppColors.cardBackground,
+          color:
+              isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
           borderRadius: BorderRadius.circular(16),
-          border: badge.isUnlocked
-              ? Border.all(color: badge.color.withValues(alpha: 0.4), width: 2)
-              : (isDark
+          border:
+              badge.isUnlocked
                   ? Border.all(
-                      color: AppColors.darkBorder.withValues(alpha: 0.2))
-                  : null),
-          boxShadow: badge.isUnlocked
-              ? [
-                  BoxShadow(
-                    color: badge.color.withValues(alpha: 0.15),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
+                    color: badge.color.withValues(alpha: 0.4),
+                    width: 2,
+                  )
+                  : (isDark
+                      ? Border.all(
+                        color: AppColors.darkBorder.withValues(alpha: 0.2),
+                      )
+                      : null),
+          boxShadow:
+              badge.isUnlocked
+                  ? [
+                    BoxShadow(
+                      color: badge.color.withValues(alpha: 0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                  : null,
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -367,20 +378,22 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: badge.isUnlocked
-                    ? badge.color.withValues(alpha: 0.15)
-                    : (isDark
-                        ? AppColors.darkSurfaceVariant
-                        : AppColors.surfaceVariant),
+                color:
+                    badge.isUnlocked
+                        ? badge.color.withValues(alpha: 0.15)
+                        : (isDark
+                            ? AppColors.darkSurfaceVariant
+                            : AppColors.surfaceVariant),
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 badge.icon,
-                color: badge.isUnlocked
-                    ? badge.color
-                    : (isDark
-                        ? AppColors.darkTextTertiary
-                        : AppColors.textTertiary),
+                color:
+                    badge.isUnlocked
+                        ? badge.color
+                        : (isDark
+                            ? AppColors.darkTextTertiary
+                            : AppColors.textTertiary),
                 size: 22,
               ),
             ),
@@ -388,14 +401,15 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
             Text(
               badge.title,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 11,
-                    color: badge.isUnlocked
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+                color:
+                    badge.isUnlocked
                         ? null
                         : (isDark
                             ? AppColors.darkTextTertiary
                             : AppColors.textTertiary),
-                  ),
+              ),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -409,14 +423,16 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
                 child: LinearProgressIndicator(
                   value: badge.progress,
                   minHeight: 3,
-                  backgroundColor: isDark
-                      ? AppColors.darkSurfaceVariant
-                      : AppColors.surfaceVariant,
-                  color: badge.isUnlocked
-                      ? badge.color
-                      : (isDark
-                          ? AppColors.darkTextTertiary
-                          : AppColors.textTertiary),
+                  backgroundColor:
+                      isDark
+                          ? AppColors.darkSurfaceVariant
+                          : AppColors.surfaceVariant,
+                  color:
+                      badge.isUnlocked
+                          ? badge.color
+                          : (isDark
+                              ? AppColors.darkTextTertiary
+                              : AppColors.textTertiary),
                 ),
               ),
             ),
@@ -424,9 +440,9 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
         ),
       ),
     ).animate().fadeIn(
-          delay: Duration(milliseconds: 60 * index),
-          duration: 300.ms,
-        );
+      delay: Duration(milliseconds: 60 * index),
+      duration: 300.ms,
+    );
   }
 }
 
