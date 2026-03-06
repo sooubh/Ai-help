@@ -12,7 +12,7 @@ import 'core/config/env_config.dart';
 import 'dart:ui';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
-import 'core/theme/app_colors.dart';
+import 'core/constants/app_colors.dart';
 import 'core/utils/app_logger.dart';
 import 'services/ai_service.dart';
 import 'features/auth/presentation/login_screen.dart';
