@@ -8,6 +8,10 @@ class PcmAudioPlayer {
   bool _isInitialized = false;
   bool _isPlaying = false;
 
+  // Queue to process chunks sequentially — prevents buffer corruption
+  final List<Uint8List> _feedQueue = [];
+  bool _isFeeding = false;
+
   bool get isPlaying => _isPlaying;
 
   Future<void> _ensureInitialized() async {
@@ -27,7 +31,7 @@ class PcmAudioPlayer {
         numChannels: 1,
         sampleRate: sampleRate,
         bufferSize: 8192,
-        interleaved: true, 
+        interleaved: true,
       );
       _isPlaying = true;
       AppLogger.info('PcmAudioPlayer', 'Player started at ${sampleRate}Hz');
@@ -37,21 +41,40 @@ class PcmAudioPlayer {
     }
   }
 
+  // FIX: Queue chunks and feed one at a time — never overlap feed calls
   void addChunk(Uint8List chunk) {
     if (!_isPlaying) return;
-    try {
-      _player.feedFromStream(chunk);
-    } catch (e, stack) {
-      AppLogger.error('PcmAudioPlayer', 'Error feeding audio chunk', e, stack);
+    _feedQueue.add(chunk);
+    _processQueue();
+  }
+
+  Future<void> _processQueue() async {
+    if (_isFeeding || _feedQueue.isEmpty) return;
+    _isFeeding = true;
+
+    while (_feedQueue.isNotEmpty && _isPlaying) {
+      final chunk = _feedQueue.removeAt(0);
+      try {
+        // CRITICAL: await each feed call before the next one
+        await _player.feedUint8FromStream(chunk);
+      } catch (e) {
+        // Silently ignore — race condition on stop
+        break;
+      }
     }
+
+    _isFeeding = false;
   }
 
   Future<void> stop() async {
     if (!_isPlaying) return;
+    // Set false BEFORE stopPlayer so queue stops immediately
+    _isPlaying = false;
+    _feedQueue.clear();
+    _isFeeding = false;
     try {
       await _player.stopPlayer();
     } catch (_) {}
-    _isPlaying = false;
     AppLogger.info('PcmAudioPlayer', 'Player stopped');
   }
 

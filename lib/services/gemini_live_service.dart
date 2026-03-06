@@ -32,7 +32,6 @@ class GeminiLiveService {
       AppLogger.info('GeminiLiveService', 'Connecting to WebSocket...');
       _channel = WebSocketChannel.connect(wsUrl);
 
-      // Wait for WebSocket handshake to fully complete before sending anything
       await _channel!.ready;
       AppLogger.info('GeminiLiveService', 'WebSocket handshake complete — sending setup');
 
@@ -108,7 +107,6 @@ class GeminiLiveService {
   void _onMessage(dynamic message) {
     String jsonString;
 
-    // FIX: API returns binary Uint8List, not String — handle both
     if (message is String) {
       jsonString = message;
     } else if (message is List<int>) {
@@ -118,12 +116,9 @@ class GeminiLiveService {
       return;
     }
 
-    AppLogger.info('GeminiLiveService', 'Message decoded: $jsonString');
-
     try {
       final data = jsonDecode(jsonString);
 
-      // Always propagate to message stream first
       _messageController.add(data);
 
       if (data.containsKey('setupComplete')) {
@@ -132,23 +127,17 @@ class GeminiLiveService {
       }
 
       if (data.containsKey('serverContent')) {
-        AppLogger.info('GeminiLiveService', 'serverContent received');
         final serverContent = data['serverContent'];
 
         if (serverContent.containsKey('modelTurn')) {
           final parts = serverContent['modelTurn']['parts'] as List;
-          AppLogger.info('GeminiLiveService', 'modelTurn has ${parts.length} parts');
-
           for (final part in parts) {
             if (part.containsKey('inlineData')) {
               final inlineData = part['inlineData'];
               final mimeType = inlineData['mimeType'] as String?;
-              AppLogger.info('GeminiLiveService', 'inlineData mimeType: $mimeType');
-
               if (mimeType != null && mimeType.startsWith('audio/pcm')) {
                 final base64Data = inlineData['data'] as String;
                 final bytes = base64Decode(base64Data);
-                AppLogger.info('GeminiLiveService', 'Audio chunk decoded: ${bytes.length} bytes');
                 _audioStreamController.add(bytes);
               }
             }
