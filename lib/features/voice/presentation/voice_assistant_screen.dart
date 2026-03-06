@@ -5,8 +5,6 @@ import '../../../core/constants/app_colors.dart';
 import '../../../models/voice_session_model.dart';
 import '../../../services/voice_assistant_service.dart';
 
-/// Full-screen voice assistant UI designed as a "Live Call".
-/// No text transcripts or chat interface per user request.
 class VoiceAssistantScreen extends StatefulWidget {
   const VoiceAssistantScreen({super.key});
 
@@ -14,7 +12,8 @@ class VoiceAssistantScreen extends StatefulWidget {
   State<VoiceAssistantScreen> createState() => _VoiceAssistantScreenState();
 }
 
-class _VoiceAssistantScreenState extends State<VoiceAssistantScreen> with SingleTickerProviderStateMixin {
+class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
+    with SingleTickerProviderStateMixin {
   late VoiceAssistantService _voiceService;
   late AnimationController _pulseController;
   bool _isInit = false;
@@ -41,9 +40,13 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen> with Single
     _voiceService = context.read<VoiceAssistantService>();
     _voiceService.addListener(_onServiceChange);
 
-    if (!_voiceService.isActive && mounted) {
-      await _voiceService.startLiveSession();
-    }
+    // FIX: Delay until after first frame to avoid
+    // "setState() called during build" crash
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!_voiceService.isActive && mounted) {
+        await _voiceService.startLiveSession();
+      }
+    });
   }
 
   void _onServiceChange() {
@@ -64,7 +67,7 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen> with Single
     final amplitudes = _voiceService.waveformAmplitudes;
 
     return Scaffold(
-      backgroundColor: Colors.black, // Dark mode forced for immersive "call" feel
+      backgroundColor: Colors.black,
       body: SafeArea(
         child: Column(
           children: [
@@ -75,7 +78,8 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen> with Single
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 32),
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                        color: Colors.white, size: 32),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                   Row(
@@ -88,15 +92,18 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen> with Single
                       const SizedBox(width: 8),
                       Text(
                         isConnected ? 'Connected' : 'Connecting...',
-                        style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
-                  const SizedBox(width: 48), // Balance for back button
+                  const SizedBox(width: 48),
                 ],
               ),
             ),
-            
+
             // Error banner
             if (_voiceService.errorMessage != null)
               Container(
@@ -118,14 +125,11 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen> with Single
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  if (status == VoiceStatus.speaking)
-                    _buildSpeakingOrb(),
-                  
-                  if (status == VoiceStatus.listening || status == VoiceStatus.processing)
+                  if (status == VoiceStatus.speaking) _buildSpeakingOrb(),
+                  if (status == VoiceStatus.listening ||
+                      status == VoiceStatus.processing)
                     _buildListeningWaveform(amplitudes),
-                  
-                  if (status == VoiceStatus.idle || !isConnected)
-                    _buildIdleOrb(),
+                  if (status == VoiceStatus.idle || !isConnected) _buildIdleOrb(),
                 ],
               ),
             ),
@@ -149,16 +153,14 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen> with Single
 
             const Spacer(),
 
-            // Bottom Controls
+            // End Call Button
             Padding(
               padding: const EdgeInsets.only(bottom: 40.0),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildEndCallButton(),
-                ],
+                children: [_buildEndCallButton()],
               ),
-            )
+            ),
           ],
         ),
       ),
@@ -212,7 +214,10 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen> with Single
                 ],
               ),
               boxShadow: [
-                BoxShadow(color: AppColors.primary.withValues(alpha: 0.5), blurRadius: 40, spreadRadius: 10),
+                BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.5),
+                    blurRadius: 40,
+                    spreadRadius: 10),
               ],
             ),
             child: const Icon(Icons.volume_up_rounded, size: 60, color: Colors.white),
@@ -229,12 +234,11 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen> with Single
       children: List.generate(5, (index) {
         double amp = 0.1;
         if (amplitudes.isNotEmpty) {
-           // Create a simple pseudo-waveform from recent history
-           final historyIndex = amplitudes.length > index ? amplitudes.length - 1 - index : 0;
-           amp = amplitudes[historyIndex];
+          final historyIndex =
+              amplitudes.length > index ? amplitudes.length - 1 - index : 0;
+          amp = amplitudes[historyIndex];
         }
         amp = amp.clamp(0.1, 1.0);
-        
         return AnimatedContainer(
           duration: const Duration(milliseconds: 100),
           margin: const EdgeInsets.symmetric(horizontal: 6),
@@ -244,7 +248,10 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen> with Single
             color: Colors.white,
             borderRadius: BorderRadius.circular(10),
             boxShadow: [
-              BoxShadow(color: Colors.white.withValues(alpha: 0.5), blurRadius: 10, spreadRadius: 2),
+              BoxShadow(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  blurRadius: 10,
+                  spreadRadius: 2),
             ],
           ),
         );

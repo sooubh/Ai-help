@@ -6,7 +6,7 @@ import 'package:record/record.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:uuid/uuid.dart';
 
-import '../main.dart'; // For navigatorKey
+import '../main.dart';
 import '../models/voice_session_model.dart';
 import '../models/child_profile_model.dart';
 import '../models/user_event_model.dart';
@@ -44,23 +44,26 @@ class VoiceAssistantService extends ChangeNotifier {
   bool _isOnline = true;
   bool _disposed = false;
 
+  // Prevents addChunk() firing before start() completes
+  bool _playerStarting = false;
+
   final List<double> _waveformAmplitudes = [];
   List<double> get waveformAmplitudes => _waveformAmplitudes;
 
   Future<bool> initialize() async {
     try {
       _micAvailable = await _audioRecorder.hasPermission();
-      
+
       _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
         final wasOnline = _isOnline;
         _isOnline = results.any((r) => r != ConnectivityResult.none);
-        
+
         if (!_isOnline && wasOnline && isActive) {
           _setError('You appear to be offline.');
           stopSession();
         }
       });
-      
+
       return _micAvailable;
     } catch (e, stack) {
       AppLogger.error('VoiceAssistantService', 'Initialization error', e, stack);
@@ -86,10 +89,10 @@ class VoiceAssistantService extends ChangeNotifier {
     _errorMessage = null;
     _updateStatus(VoiceStatus.processing);
 
-    final profileContext = childProfile != null 
+    final profileContext = childProfile != null
         ? "Child profile: ${childProfile.name}, age ${childProfile.age}, conditions: ${childProfile.conditions.join(', ')}. "
         : "";
-    
+
     final systemInstruction = '''You are CARE-AI Voice, a warm, supportive virtual therapist.
 $profileContext
 RULES:
@@ -98,25 +101,47 @@ RULES:
 - If they ask to navigate somewhere, use the function tool to navigate.''';
 
     await _liveService.connect(systemInstruction);
+    notifyListeners(); // Safe — called after connect(), not during build
 
-    _audioSub = _liveService.audioStream.listen((chunk) {
-      if (!_audioPlayer.isPlaying) {
+    // FIX: await start() before feeding chunks to avoid race condition
+    _audioSub = _liveService.audioStream.listen((chunk) async {
+      if (!_audioPlayer.isPlaying && !_playerStarting) {
+        _playerStarting = true;
+        await _audioPlayer.start(sampleRate: 24000);
+        _playerStarting = false;
         _updateStatus(VoiceStatus.speaking);
-        _audioPlayer.playStream(_liveService.audioStream, sampleRate: 24000);
+      }
+      // Only feed chunk if player is fully ready
+      if (_audioPlayer.isPlaying) {
+        _audioPlayer.addChunk(chunk);
       }
     });
 
-    _msgSub = _liveService.messagesStream.listen((msg) {
+    // FIX: Start mic ONLY after setupComplete is received from API
+    _msgSub = _liveService.messagesStream.listen((msg) async {
+      if (msg.containsKey('setupComplete')) {
+        AppLogger.info('VoiceAssistantService', 'Setup complete — starting mic');
+        await _startMicStreaming();
+        _updateStatus(VoiceStatus.listening);
+        return;
+      }
+
       if (msg.containsKey('serverContent')) {
         final content = msg['serverContent'];
-        
-        // Handle interruptions
-        if (content['interrupted'] == true) {
-          _audioPlayer.stop();
+
+        // AI finished speaking — reset to listening
+        if (content['turnComplete'] == true) {
+          await _audioPlayer.stop();
           _updateStatus(VoiceStatus.listening);
         }
 
-        // Handle Function calls
+        // AI was interrupted — reset to listening
+        if (content['interrupted'] == true) {
+          await _audioPlayer.stop();
+          _updateStatus(VoiceStatus.listening);
+        }
+
+        // Handle function calls
         if (content.containsKey('modelTurn')) {
           final parts = content['modelTurn']['parts'] as List;
           for (final part in parts) {
@@ -128,9 +153,6 @@ RULES:
       }
     });
 
-    await _startMicStreaming();
-    
-    _updateStatus(VoiceStatus.listening);
     _logEvent('live_voice_session_started', {});
   }
 
@@ -143,11 +165,10 @@ RULES:
 
     _micSub = stream.listen((data) {
       _updateWaveform(data);
-      // Stream mic input directly to Gemini
       _liveService.sendAudioChunk(data);
     }, onError: (e, stack) {
       AppLogger.error('VoiceAssistantService', 'Microphone stream error', e, stack);
-      _setError('Microphone error hardware disconnected.');
+      _setError('Microphone error: hardware disconnected.');
     });
   }
 
@@ -161,7 +182,7 @@ RULES:
     }
     final avg = sum / (data.length / 2);
     final normalized = (avg / 32768.0).clamp(0.0, 1.0);
-    
+
     _waveformAmplitudes.add(normalized);
     if (_waveformAmplitudes.length > 20) {
       _waveformAmplitudes.removeAt(0);
@@ -182,12 +203,11 @@ RULES:
       final args = call['args'] as Map<String, dynamic>;
       final action = args['action'];
       final target = args['target'];
-      
+
       if (action == 'navigate' && target != null) {
         _navigateToTarget(target);
       }
-      
-      // Acknowledge function call
+
       final response = {
         "clientContent": {
           "turns": [
@@ -206,13 +226,12 @@ RULES:
           "turnComplete": true
         }
       };
-      // Send directly via WebSocket
       _liveService.sendJson(response);
     }
   }
 
   void _navigateToTarget(String target) {
-    String route = '/home'; 
+    String route = '/home';
     switch (target.toLowerCase()) {
       case 'dashboard': route = '/home'; break;
       case 'wellness': route = '/wellness'; break;
@@ -228,13 +247,14 @@ RULES:
   }
 
   Future<void> stopSession() async {
+    _playerStarting = false;
     _micSub?.cancel();
     await _audioRecorder.stop();
     _liveService.disconnect();
     _audioSub?.cancel();
     _msgSub?.cancel();
     await _audioPlayer.stop();
-    
+
     _waveformAmplitudes.clear();
     _session = null;
     _errorMessage = null;

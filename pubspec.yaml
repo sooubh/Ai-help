@@ -61,7 +61,7 @@ dependencies:
   # Real-time Audio (Gemini Live API)
   record: ^6.2.0
   web_socket_channel: ^3.0.0
-  just_audio: ^0.9.40
+  flutter_sound: ^9.2.13
   audioplayers: ^6.6.0
 
 dev_dependencies:

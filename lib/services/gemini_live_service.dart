@@ -1,16 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../core/config/env_config.dart';
 import '../core/utils/app_logger.dart';
 
-/// Service for managing the bidirectional WebSocket connection 
-/// to the Gemini Live API with Native Audio support.
 class GeminiLiveService {
   WebSocketChannel? _channel;
-  
+
   final _audioStreamController = StreamController<Uint8List>.broadcast();
   final _messageController = StreamController<Map<String, dynamic>>.broadcast();
 
@@ -19,10 +16,9 @@ class GeminiLiveService {
 
   bool get isConnected => _channel != null;
 
-  /// Connects to the Gemini Live API and sends the initial setup message.
   Future<void> connect(String systemInstruction) async {
     if (_channel != null) return;
-    
+
     final apiKey = EnvConfig.geminiApiKey;
     if (apiKey.isEmpty) {
       AppLogger.error('GeminiLiveService', 'Gemini API key is missing');
@@ -30,25 +26,29 @@ class GeminiLiveService {
     }
 
     final wsUrl = Uri.parse(
-        'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=$apiKey');
+        'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=$apiKey');
 
     try {
+      AppLogger.info('GeminiLiveService', 'Connecting to WebSocket...');
       _channel = WebSocketChannel.connect(wsUrl);
 
-      // Listen to incoming messages before sending setup
+      // Wait for WebSocket handshake to fully complete before sending anything
+      await _channel!.ready;
+      AppLogger.info('GeminiLiveService', 'WebSocket handshake complete — sending setup');
+
       _channel!.stream.listen(
         _onMessage,
         onError: (e, stack) {
-          AppLogger.error('GeminiLiveService', 'WebSocket error', e, stack);
+          AppLogger.error('GeminiLiveService', 'WebSocket error: $e', e, stack);
           disconnect();
         },
         onDone: () {
-          AppLogger.info('GeminiLiveService', 'WebSocket closed');
+          AppLogger.info('GeminiLiveService',
+              'WebSocket closed. Code: ${_channel?.closeCode} Reason: ${_channel?.closeReason}');
           disconnect();
         },
       );
 
-      // Send setup message
       final setupMessage = {
         "setup": {
           "model": "models/gemini-2.5-flash-native-audio-preview-12-2025",
@@ -86,15 +86,16 @@ class GeminiLiveService {
           ]
         }
       };
-      
+
       _channel!.sink.add(jsonEncode(setupMessage));
+      AppLogger.info('GeminiLiveService', 'Setup message sent — waiting for setupComplete');
+
     } catch (e, stack) {
       AppLogger.error('GeminiLiveService', 'Error connecting WebSocket', e, stack);
       disconnect();
     }
   }
 
-  /// Send generic JSON data (e.g. function responses)
   void sendJson(Map<String, dynamic> data) {
     if (_channel == null) return;
     try {
@@ -105,41 +106,75 @@ class GeminiLiveService {
   }
 
   void _onMessage(dynamic message) {
-    if (message is! String) return;
-    
+    String jsonString;
+
+    // FIX: API returns binary Uint8List, not String — handle both
+    if (message is String) {
+      jsonString = message;
+    } else if (message is List<int>) {
+      jsonString = utf8.decode(message);
+    } else {
+      AppLogger.info('GeminiLiveService', 'Unknown message type: ${message.runtimeType}');
+      return;
+    }
+
+    AppLogger.info('GeminiLiveService', 'Message decoded: $jsonString');
+
     try {
-      final data = jsonDecode(message);
-      
-      // Notify generic message stream
+      final data = jsonDecode(jsonString);
+
+      // Always propagate to message stream first
       _messageController.add(data);
 
+      if (data.containsKey('setupComplete')) {
+        AppLogger.info('GeminiLiveService', 'setupComplete received — mic will start now');
+        return;
+      }
+
       if (data.containsKey('serverContent')) {
+        AppLogger.info('GeminiLiveService', 'serverContent received');
         final serverContent = data['serverContent'];
-        
+
         if (serverContent.containsKey('modelTurn')) {
           final parts = serverContent['modelTurn']['parts'] as List;
+          AppLogger.info('GeminiLiveService', 'modelTurn has ${parts.length} parts');
+
           for (final part in parts) {
             if (part.containsKey('inlineData')) {
               final inlineData = part['inlineData'];
               final mimeType = inlineData['mimeType'] as String?;
+              AppLogger.info('GeminiLiveService', 'inlineData mimeType: $mimeType');
+
               if (mimeType != null && mimeType.startsWith('audio/pcm')) {
                 final base64Data = inlineData['data'] as String;
                 final bytes = base64Decode(base64Data);
+                AppLogger.info('GeminiLiveService', 'Audio chunk decoded: ${bytes.length} bytes');
                 _audioStreamController.add(bytes);
               }
             }
           }
         }
+
+        if (serverContent['turnComplete'] == true) {
+          AppLogger.info('GeminiLiveService', 'turnComplete received');
+        }
+
+        if (serverContent['interrupted'] == true) {
+          AppLogger.info('GeminiLiveService', 'interrupted received');
+        }
       }
+
+      if (data.containsKey('toolCall')) {
+        AppLogger.info('GeminiLiveService', 'toolCall received: ${data['toolCall']}');
+      }
+
     } catch (e, stack) {
       AppLogger.error('GeminiLiveService', 'Error parsing WebSocket message', e, stack);
     }
   }
 
-  /// Sends a chunk of 16-bit PCM 16kHz audio data to the exact API
   void sendAudioChunk(Uint8List chunk) {
     if (_channel == null) return;
-
     final base64Data = base64Encode(chunk);
     final message = {
       "realtime_input": {
@@ -151,14 +186,13 @@ class GeminiLiveService {
         ]
       }
     };
-    
     try {
       _channel!.sink.add(jsonEncode(message));
     } catch (e, stack) {
       AppLogger.error('GeminiLiveService', 'Error sending audio chunk', e, stack);
     }
   }
-  
+
   void sendClientContent(String text) {
     if (_channel == null) return;
     final message = {
