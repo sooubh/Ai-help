@@ -21,6 +21,7 @@ class ChildProfileModel {
   final String? medicalNotes;
   final String? relationship; // e.g. Mother, Father
   final String? photoUrl;
+  final List<String> completedModuleIds;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -40,6 +41,7 @@ class ChildProfileModel {
     this.medicalNotes,
     this.relationship,
     this.photoUrl,
+    this.completedModuleIds = const [],
     DateTime? createdAt,
     DateTime? updatedAt,
   }) : createdAt = createdAt ?? DateTime.now(),
@@ -63,6 +65,7 @@ class ChildProfileModel {
       medicalNotes: map['medicalNotes'],
       relationship: map['relationship'],
       photoUrl: map['photoUrl'],
+      completedModuleIds: List<String>.from(map['completedModuleIds'] ?? []),
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (map['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -86,6 +89,7 @@ class ChildProfileModel {
       'medicalNotes': medicalNotes,
       'relationship': relationship,
       'photoUrl': photoUrl,
+      'completedModuleIds': completedModuleIds,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
@@ -108,6 +112,7 @@ class ChildProfileModel {
     String? medicalNotes,
     String? relationship,
     String? photoUrl,
+    List<String>? completedModuleIds,
   }) {
     return ChildProfileModel(
       id: id ?? this.id,
@@ -125,6 +130,7 @@ class ChildProfileModel {
       medicalNotes: medicalNotes ?? this.medicalNotes,
       relationship: relationship ?? this.relationship,
       photoUrl: photoUrl ?? this.photoUrl,
+      completedModuleIds: completedModuleIds ?? this.completedModuleIds,
       createdAt: createdAt,
       updatedAt: DateTime.now(),
     );

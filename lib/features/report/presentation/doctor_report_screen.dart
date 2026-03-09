@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../services/firebase_service.dart';
+import '../../../services/cache/smart_data_repository.dart';
+import 'package:provider/provider.dart';
 
 /// Doctor/Therapist Report — generates a professional, shareable
 /// summary of the child's profile, skills, activities, and milestones.
@@ -27,10 +29,16 @@ class _DoctorReportScreenState extends State<DoctorReportScreen> {
 
   Future<void> _generateReport() async {
     try {
+      final repository = context.read<SmartDataRepository>();
+      final uid = _firebaseService.currentUser?.uid;
+      if (uid == null) throw Exception("User not logged in");
+
       final childProfile = await _firebaseService.getChildProfile();
-      final userProfile = await _firebaseService.getUserProfile();
-      final skillProgress = await _firebaseService.getSkillProgress();
-      final weeklyStats = await _firebaseService.getWeeklyStats();
+      final userProfile = await repository.getUserProfile(uid);
+      final dashboard = await repository.getDashboardData(uid);
+      
+      final skillProgress = Map<String, double>.from(dashboard['skillProgress'] ?? {});
+      final weeklyStats = dashboard['weeklyStats'] ?? {'count': 0, 'minutes': 0, 'streak': 0};
       final activityLogs = await _firebaseService.getActivityLogs(limit: 5);
       final milestones = await _firebaseService.getMilestones();
 

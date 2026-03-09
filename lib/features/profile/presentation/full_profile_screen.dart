@@ -5,6 +5,8 @@ import '../../../models/user_model.dart';
 import '../../../models/doctor_model.dart';
 import '../../../models/child_profile_model.dart';
 import '../../../services/firebase_service.dart';
+import '../../../services/cache/smart_data_repository.dart';
+import 'package:provider/provider.dart';
 
 class FullProfileScreen extends StatefulWidget {
   const FullProfileScreen({super.key});
@@ -29,13 +31,17 @@ class _FullProfileScreenState extends State<FullProfileScreen> {
 
   Future<void> _loadProfileData() async {
     try {
-      final user = await _firebaseService.getUserProfile();
+      final repository = context.read<SmartDataRepository>();
+      final uid = _firebaseService.currentUser?.uid;
+      if (uid == null) return;
+
+      final user = await repository.getUserProfile(uid);
       if (user != null) {
         _userProfile = user;
         if (user.role == 'doctor') {
           _doctorProfile = await _firebaseService.getDoctorProfile();
         } else {
-          _childrenProfiles = await _firebaseService.getChildProfiles();
+          _childrenProfiles = await repository.getChildProfiles(uid);
         }
       }
     } catch (e) {

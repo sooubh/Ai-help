@@ -13,6 +13,7 @@ import 'gemini_live_service.dart';
 import 'pcm_audio_player.dart';
 import 'firebase_service.dart';
 import 'context_builder_service.dart';
+import 'cache/smart_data_repository.dart';
 import '../core/utils/app_logger.dart';
 
 class VoiceAssistantService extends ChangeNotifier {
@@ -98,7 +99,7 @@ class VoiceAssistantService extends ChangeNotifier {
     _updateStatus(VoiceStatus.processing);
 
     // Build full context before connecting
-    final contextService = ContextBuilderService(_firebaseService);
+    final contextService = ContextBuilderService(SmartDataRepository(_firebaseService));
     final userId = _firebaseService.currentUser?.uid;
 
     String fullContext = "";

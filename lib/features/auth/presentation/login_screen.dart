@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/utils/ui_helpers.dart';
 import '../../../services/firebase_service.dart';
+import '../../../services/cache/sync_manager.dart';
+import '../../../services/cache/local_cache_service.dart';
 import '../../../widgets/custom_text_field.dart';
 
 /// Premium login screen with gradient background,
@@ -57,6 +60,18 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      // Start cache sync after successful login
+      final userId = _firebaseService.currentUser?.uid;
+      if (userId != null && mounted) {
+        final syncManager = context.read<SyncManager>();
+        await syncManager.startSync(userId);
+        final cache = LocalCacheService.instance;
+        if (cache.lastBackupTime == null) {
+          await cache.restoreFromBackup();
+        }
+      }
+      if (!mounted) return;
+
       if (profile?.role == 'doctor') {
         final docProfile = await _firebaseService.getDoctorProfile();
         if (!mounted) return;
@@ -92,6 +107,18 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       if (!mounted) return;
       if (user != null) {
+        // Start cache sync after successful Google login
+        final userId = _firebaseService.currentUser?.uid;
+        if (userId != null && mounted) {
+          final syncManager = context.read<SyncManager>();
+          await syncManager.startSync(userId);
+          final cache = LocalCacheService.instance;
+          if (cache.lastBackupTime == null) {
+            await cache.restoreFromBackup();
+          }
+        }
+        if (!mounted) return;
+
         final profile = await _firebaseService.getUserProfile();
         if (!mounted) return;
 

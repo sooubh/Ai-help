@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../services/firebase_service.dart';
+import '../../../services/cache/smart_data_repository.dart';
+import 'package:provider/provider.dart';
 import '../../../models/activity_log_model.dart';
 
 /// Progress tracking screen — real-time data from Firestore.
@@ -33,19 +35,24 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
   Future<void> _loadData() async {
     try {
-      final stats = await _firebaseService.getWeeklyStats();
-      final skills = await _firebaseService.getSkillProgress();
+      final repository = context.read<SmartDataRepository>();
+      final uid = _firebaseService.currentUser?.uid;
+      if (uid == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+      
+      final dashboard = await repository.getDashboardData(uid);
       final logs = await _firebaseService.getActivityLogs(limit: 5);
       final milestones = await _firebaseService.getMilestones();
-      final counts = await _firebaseService.getDailyActivityCounts();
 
       if (mounted) {
         setState(() {
-          _weeklyStats = stats;
-          _skillProgress = skills;
+          _weeklyStats = dashboard['weeklyStats'] ?? {'count': 0, 'minutes': 0, 'streak': 0};
+          _skillProgress = Map<String, double>.from(dashboard['skillProgress'] ?? {});
           _activityLogs = logs;
           _milestones = milestones;
-          _dailyCounts = counts;
+          _dailyCounts = List<int>.from(dashboard['dailyActivityCounts'] ?? List.filled(7, 0));
           _isLoading = false;
         });
       }

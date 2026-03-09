@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_shadows.dart';
-import '../../../services/firebase_service.dart';
+import '../../../services/cache/smart_data_repository.dart';
 import '../../../models/post_model.dart';
 import '../../../widgets/custom_button.dart';
 
@@ -18,12 +19,18 @@ class CommunityScreen extends StatefulWidget {
 class _CommunityScreenState extends State<CommunityScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final _firebaseService = FirebaseService();
+  late SmartDataRepository _repository;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _repository = context.read<SmartDataRepository>();
   }
 
   @override
@@ -88,8 +95,10 @@ class _CommunityScreenState extends State<CommunityScreen>
                       final text = textController.text.trim();
                       if (text.isNotEmpty) {
                         Navigator.pop(context);
-                        final user = await _firebaseService.getUserProfile();
-                        await _firebaseService.createPost(
+                        final user = await _repository.getUserProfile(
+                          _repository.currentUserId ?? '',
+                        );
+                        await _repository.createPost(
                           text,
                           user?.displayName ?? 'Anonymous Parent',
                         );
@@ -136,7 +145,7 @@ class _CommunityScreenState extends State<CommunityScreen>
 
   Widget _buildForumTab(bool isDark) {
     return StreamBuilder<List<PostModel>>(
-      stream: _firebaseService.getCommunityPosts(),
+      stream: _repository.getCommunityPosts(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text('Error loading posts: \${snapshot.error}'));
@@ -176,7 +185,7 @@ class _CommunityScreenState extends State<CommunityScreen>
           itemBuilder: (context, index) {
             final post = posts[index];
             final isLiked = post.likes.contains(
-              _firebaseService.currentUser?.uid,
+              _repository.currentUserId,
             );
 
             return Container(
@@ -257,7 +266,7 @@ class _CommunityScreenState extends State<CommunityScreen>
                         children: [
                           InkWell(
                                 onTap:
-                                    () => _firebaseService.toggleLikePost(
+                                    () => _repository.toggleLikePost(
                                       post.id!,
                                     ),
                                 borderRadius: BorderRadius.circular(20),

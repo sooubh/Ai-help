@@ -3,6 +3,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../services/firebase_service.dart';
 import '../../../services/cloud_functions_service.dart';
+import '../../../services/cache/smart_data_repository.dart';
+import 'package:provider/provider.dart';
+import '../../../models/child_profile_model.dart';
 
 /// Daily Plan screen — loads today's plan from Firestore.
 /// Falls back to auto-generated plan from child profile if none saved.
@@ -37,11 +40,15 @@ class _DailyPlanScreenState extends State<DailyPlanScreen> {
 
   Future<void> _loadPlan() async {
     try {
-      final saved = await _firebaseService.getDailyPlan(_todayKey);
+      final repository = context.read<SmartDataRepository>();
+      final uid = _firebaseService.currentUser?.uid;
+      if (uid == null) throw Exception("User not logged in");
+
+      final saved = await repository.getDailyPlan(uid, _todayKey);
       if (saved != null && saved.isNotEmpty) {
         // Load from Firestore
         setState(() {
-          _activities = saved.map((a) => _PlanActivity.fromMap(a)).toList();
+          _activities = saved.map((a) => _PlanActivity.fromMap(a as Map<String, dynamic>)).toList();
           _isLoading = false;
         });
       } else {
@@ -54,7 +61,14 @@ class _DailyPlanScreenState extends State<DailyPlanScreen> {
   }
 
   Future<void> _generatePlan() async {
-    final profile = await _firebaseService.getChildProfile();
+    final repository = context.read<SmartDataRepository>();
+    final uid = _firebaseService.currentUser?.uid;
+    ChildProfileModel? profile;
+    if (uid != null) {
+      final profiles = await repository.getChildProfiles(uid);
+      if (profiles.isNotEmpty) profile = profiles.first;
+    }
+    
     final childId = profile?.id;
 
     if (childId != null) {

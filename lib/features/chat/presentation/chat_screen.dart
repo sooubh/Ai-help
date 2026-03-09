@@ -15,6 +15,7 @@ import '../../../services/ai_service.dart';
 import '../../../services/firebase_service.dart';
 import '../../../services/tts_service.dart';
 import '../../../services/context_builder_service.dart';
+import '../../../services/cache/smart_data_repository.dart';
 import '../../../models/chat_message_model.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'widgets/media_picker_bottom_sheet.dart';
@@ -139,10 +140,18 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _initChat() async {
     // Capture reference before async gap
     final aiService = context.read<AiService>();
-    final profile = await _firebaseService.getChildProfile();
+    final userId = _firebaseService.currentUser?.uid;
+    ChildProfileModel? profile;
+    
+    if (userId != null) {
+      final repository = context.read<SmartDataRepository>();
+      final profiles = await repository.getChildProfiles(userId);
+      if (profiles.isNotEmpty) {
+        profile = profiles.first;
+      }
+    }
     
     // Build full holistic context
-    final userId = _firebaseService.currentUser?.uid;
     String fullContext = "";
     if (userId != null) {
       final contextService = ContextBuilderService(_firebaseService);
@@ -156,7 +165,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
     // Load chat history from Firestore (last 50)
     try {
-      final stream = _firebaseService.getChatMessages();
+      if (userId == null) throw Exception('User not logged in');
+      final repository = context.read<SmartDataRepository>();
+      final stream = repository.getChatMessages(userId);
       final messages = await stream.first;
       if (messages.isNotEmpty && mounted) {
         final historyMsgs =

@@ -391,6 +391,7 @@ class FirebaseService {
 
     return path
         .orderBy('timestamp', descending: false)
+        .limit(50)
         .snapshots()
         .map(
           (snapshot) =>
@@ -497,137 +498,6 @@ class FirebaseService {
     return snapshot.docs
         .map((doc) => ActivityLogModel.fromMap(doc.data(), doc.id))
         .toList();
-  }
-
-  /// Get weekly stats: total activities, total minutes, current streak.
-  Future<Map<String, dynamic>> getWeeklyStats() async {
-    final uid = currentUser?.uid;
-    if (uid == null) return {'count': 0, 'minutes': 0, 'streak': 0};
-    
-    // Use cache if within 5 minutes
-    if (_cachedWeeklyStats != null && _weeklyStatsCacheTime != null) {
-      if (DateTime.now().difference(_weeklyStatsCacheTime!).inMinutes < 5) {
-        return _cachedWeeklyStats!;
-      }
-    }
-
-    final now = DateTime.now();
-    final weekAgo = now.subtract(const Duration(days: 7));
-
-    final snapshot =
-        await _firestore
-            .collection('users')
-            .doc(uid)
-            .collection('activity_logs')
-            .where(
-              'completedAt',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(weekAgo),
-            )
-            .orderBy('completedAt', descending: true)
-            .get();
-
-    final logs =
-        snapshot.docs
-            .map((doc) => ActivityLogModel.fromMap(doc.data(), doc.id))
-            .toList();
-
-    int totalSeconds = 0;
-    for (final log in logs) {
-      totalSeconds += log.durationSeconds;
-    }
-
-    // Calculate streak (consecutive days with activity)
-    int streak = 0;
-    var checkDate = DateTime(now.year, now.month, now.day);
-    final allLogs = await getActivityLogs(limit: 100);
-    final activeDays = <String>{};
-    for (final log in allLogs) {
-      activeDays.add(
-        '${log.completedAt.year}-${log.completedAt.month}-${log.completedAt.day}',
-      );
-    }
-
-    while (activeDays.contains(
-      '${checkDate.year}-${checkDate.month}-${checkDate.day}',
-    )) {
-      streak++;
-      checkDate = checkDate.subtract(const Duration(days: 1));
-    }
-
-    _cachedWeeklyStats = {
-      'count': logs.length,
-      'minutes': (totalSeconds / 60).round(),
-      'streak': streak,
-    };
-    _weeklyStatsCacheTime = DateTime.now();
-    
-    return _cachedWeeklyStats!;
-  }
-
-  // ─── Skill Progress (aggregated from activity logs) ────
-
-  /// Calculate skill progress from activity logs by category.
-  Future<Map<String, double>> getSkillProgress() async {
-    final uid = currentUser?.uid;
-    if (uid == null) return {};
-
-    final snapshot =
-        await _firestore
-            .collection('users')
-            .doc(uid)
-            .collection('activity_logs')
-            .get();
-
-    if (snapshot.docs.isEmpty) return {};
-
-    // Count activities per category
-    final categoryCounts = <String, int>{};
-    for (final doc in snapshot.docs) {
-      final cat = doc.data()['category'] as String? ?? 'Other';
-      categoryCounts[cat] = (categoryCounts[cat] ?? 0) + 1;
-    }
-
-    // Normalize to 0-1 range (10 activities = 100%)
-    final progress = <String, double>{};
-    for (final entry in categoryCounts.entries) {
-      progress[entry.key] = (entry.value / 10).clamp(0.0, 1.0);
-    }
-    return progress;
-  }
-
-  // ─── Daily Activity Counts (for weekly trend) ──────────
-
-  /// Get activity counts for each of the last 7 days.
-  Future<List<int>> getDailyActivityCounts() async {
-    final uid = currentUser?.uid;
-    if (uid == null) return List.filled(7, 0);
-
-    final now = DateTime.now();
-    final weekAgo = now.subtract(const Duration(days: 7));
-
-    final snapshot =
-        await _firestore
-            .collection('users')
-            .doc(uid)
-            .collection('activity_logs')
-            .where(
-              'completedAt',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(weekAgo),
-            )
-            .get();
-
-    // Initialize with 0 for each day (Mon-Sun or last 7 days)
-    final counts = List.filled(7, 0);
-    for (final doc in snapshot.docs) {
-      final ts = (doc.data()['completedAt'] as Timestamp?)?.toDate();
-      if (ts != null) {
-        final daysAgo = now.difference(ts).inDays;
-        if (daysAgo >= 0 && daysAgo < 7) {
-          counts[6 - daysAgo] += 1;
-        }
-      }
-    }
-    return counts;
   }
 
   // ─── Daily Plan CRUD ───────────────────────────────────
@@ -846,61 +716,23 @@ class FirebaseService {
   }
 
   /// Get the set of module IDs that have been completed at least once.
-  Future<Set<String>> getCompletedModuleIds() async {
+  Future<Set<String>> getCompletedModuleIds([String? childId]) async {
     final uid = currentUser?.uid;
     if (uid == null) return {};
 
-    final snapshot =
-        await _firestore
-            .collection('users')
-            .doc(uid)
-            .collection('therapy_sessions')
-            .get();
-
-    return snapshot.docs
-        .map((doc) => doc.data()['moduleId'] as String? ?? '')
-        .where((id) => id.isNotEmpty)
-        .toSet();
-  }
-
-  /// Build a comprehensive therapy history summary for AI analysis.
-  Future<Map<String, dynamic>> getChildTherapyHistory([String? childId]) async {
-    final sessions = await getTherapySessions(limit: 100);
-    final weeklyStats = await getWeeklyStats();
-    final skillProg = await getSkillProgress();
-    final completedIds = await getCompletedModuleIds();
-
-    // Aggregate per-category performance
-    final categoryScores = <String, List<double>>{};
-    for (final s in sessions) {
-      categoryScores.putIfAbsent(s.skillCategory, () => []);
-      categoryScores[s.skillCategory]!.add(s.scorePercent);
+    if (childId != null) {
+      final doc = await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('children')
+          .doc(childId)
+          .get();
+      if (doc.exists && doc.data()!.containsKey('completedModuleIds')) {
+        final list = List<String>.from(doc.data()!['completedModuleIds'] ?? []);
+        return list.toSet();
+      }
     }
-    final avgScores = <String, double>{};
-    for (final entry in categoryScores.entries) {
-      final avg = entry.value.reduce((a, b) => a + b) / entry.value.length;
-      avgScores[entry.key] = double.parse(avg.toStringAsFixed(1));
-    }
-
-    return {
-      'totalSessionsCompleted': sessions.length,
-      'completedModuleIds': completedIds.toList(),
-      'weeklyStats': weeklyStats,
-      'skillProgress': skillProg,
-      'averageScoresByCategory': avgScores,
-      'recentSessions':
-          sessions
-              .take(10)
-              .map(
-                (s) => {
-                  'module': s.moduleTitle,
-                  'category': s.skillCategory,
-                  'score': '${s.scorePercent.toStringAsFixed(0)}%',
-                  'difficulty': s.difficultyLevel,
-                },
-              )
-              .toList(),
-    };
+    return {};
   }
 
   // ─── User Event Tracking ───────────────────────────────

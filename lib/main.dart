@@ -46,6 +46,9 @@ import 'features/doctor/presentation/compose_guidance_note_screen.dart';
 import 'services/notification_service.dart';
 import 'services/firebase_service.dart';
 import 'services/voice_assistant_service.dart';
+import 'services/cache/local_cache_service.dart';
+import 'services/cache/smart_data_repository.dart';
+import 'services/cache/sync_manager.dart';
 
 /// Entry point for CARE-AI.
 /// Initializes Firebase, validates environment, sets up providers,
@@ -114,6 +117,9 @@ void main() async {
     );
   };
 
+  // Initialize local cache FIRST
+  await LocalCacheService.initialize();
+
   // Initialize Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
@@ -169,6 +175,17 @@ void main() async {
           ChangeNotifierProvider.value(value: themeProvider),
           Provider.value(value: aiService),
           ChangeNotifierProvider.value(value: voiceService),
+          Provider<FirebaseService>(create: (_) => FirebaseService()),
+          Provider<LocalCacheService>(create: (_) => LocalCacheService.instance),
+          Provider<SmartDataRepository>(
+            create: (ctx) => SmartDataRepository(ctx.read<FirebaseService>()),
+          ),
+          Provider<SyncManager>(
+            create: (ctx) => SyncManager(
+              ctx.read<SmartDataRepository>(),
+              ctx.read<FirebaseService>(),
+            ),
+          ),
         ],
         child: const CareAiApp(),
       ),
@@ -223,6 +240,12 @@ class _CareAiAppState extends State<CareAiApp> with WidgetsBindingObserver {
     } else if (state == AppLifecycleState.resumed) {
       // App is in foreground — cancel reminders as user is active
       _notificationService.cancelInactivityReminders();
+
+      // Sync on app resume
+      final userId = context.read<FirebaseService>().currentUser?.uid;
+      if (userId != null) {
+        context.read<SyncManager>().onAppResume(userId);
+      }
     }
   }
 

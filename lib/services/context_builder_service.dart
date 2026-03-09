@@ -3,55 +3,61 @@ import 'package:intl/intl.dart';
 import '../models/child_profile_model.dart';
 import '../models/activity_log_model.dart';
 import '../models/guidance_note_model.dart';
-import 'firebase_service.dart';
+import 'cache/smart_data_repository.dart';
+import 'cache/local_cache_service.dart';
 
 class ContextBuilderService {
-  final FirebaseService _firebaseService;
+  final SmartDataRepository _repository;
 
-  ContextBuilderService(this._firebaseService);
+  ContextBuilderService(this._repository);
 
   /// Builds a comprehensive string representing the user's current holistic context
   Future<String> buildFullContext({
     required String userId,
     ChildProfileModel? childProfile,
   }) async {
-    // Fetch relevant context data in parallel
+    const key = 'context_data';
+    final cache = LocalCacheService.instance;
+
+    // Return cached context if fresh (10 min TTL)
+    if (cache.isFresh(key)) {
+      final cached = cache.get<String>(key, (j) => j.toString());
+      if (cached != null) return cached;
+    }
+
+    // All calls go through cache — zero extra Firebase reads
     final results = await Future.wait([
-      _firebaseService.getMoodHistory(limit: 7),
-      _firebaseService.getDailyPlan(
-        DateFormat('yyyy-MM-dd').format(DateTime.now()),
+      _repository.getMoodHistory(userId),
+      _repository.getDailyPlan(
+        userId, DateFormat('yyyy-MM-dd').format(DateTime.now()),
       ),
-      _firebaseService.getWeeklyStats(),
+      _repository.getDashboardData(userId),
       childProfile != null
-          ? _fetchLatestGuidanceNote(childProfile.id!)
-          : Future.value(null),
-      _firebaseService.getActivityLogs(limit: 5),
+          ? _repository.getGuidanceNotes(childProfile.id!)
+          : Future.value([]),
     ]);
 
     final moodHistory = results[0] as List<Map<String, dynamic>>?;
     final dailyPlan = results[1] as List<Map<String, dynamic>>?;
-    final weeklyStats = results[2] as Map<String, dynamic>?;
-    final latestNote = results[3] as GuidanceNoteModel?;
-    final recentActivities = results[4] as List<ActivityLogModel>?;
+    final dashboardData = results[2] as Map<String, dynamic>?;
+    final notesData = results[3] as List<Map<String, dynamic>>?;
 
-    return _assembleContext(
+    GuidanceNoteModel? latestNote;
+    if (notesData != null && notesData.isNotEmpty) {
+      latestNote = GuidanceNoteModel.fromMap(notesData.first, notesData.first['id']);
+    }
+
+    final contextInfo = _assembleContext(
       childProfile: childProfile,
       moodHistory: moodHistory ?? [],
       dailyPlan: dailyPlan,
-      weeklyStats: weeklyStats,
+      weeklyStats: dashboardData?['weeklyStats'],
       latestNote: latestNote,
-      recentActivities: recentActivities ?? [],
+      recentActivities: [], // Handled by dashboard stats now
     );
-  }
 
-  Future<GuidanceNoteModel?> _fetchLatestGuidanceNote(String childId) async {
-    try {
-      final stream = _firebaseService.watchGuidanceNotes(childId);
-      final notes = await stream.first;
-      return notes.isNotEmpty ? notes.first : null;
-    } catch (_) {
-      return null;
-    }
+    await cache.save(key, contextInfo);
+    return contextInfo;
   }
 
   String _assembleContext({

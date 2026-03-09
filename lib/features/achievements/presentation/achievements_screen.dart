@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../services/firebase_service.dart';
+import '../../../services/cache/smart_data_repository.dart';
+import 'package:provider/provider.dart';
 import '../../../models/activity_log_model.dart';
 
 /// Achievements & Badges screen — shows unlockable badges
@@ -27,8 +29,14 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
 
   Future<void> _loadData() async {
     try {
+      final repository = context.read<SmartDataRepository>();
+      final uid = _firebaseService.currentUser?.uid;
+      if (uid == null) throw Exception("User not logged in");
+
       final logs = await _firebaseService.getActivityLogs(limit: 200);
-      final stats = await _firebaseService.getWeeklyStats();
+      final dashboard = await repository.getDashboardData(uid);
+      final stats = dashboard['weeklyStats'] ?? {'count': 0, 'minutes': 0, 'streak': 0};
+      
       if (mounted) {
         setState(() {
           _logs = logs;

@@ -13,6 +13,9 @@ import '../../activities/presentation/therapy_activity_screen.dart';
 import '../../progress/presentation/progress_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
 import 'package:provider/provider.dart';
+import '../../../services/cache/smart_data_repository.dart';
+import '../../../services/cache/sync_manager.dart';
+import '../../../services/cache/local_cache_service.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../models/recommendation_model.dart';
 import '../../../models/guidance_note_model.dart';
@@ -36,6 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<ChildProfileModel> _allChildren = [];
   bool _isLoadingProfile = true;
   Map<String, dynamic> _weeklyStats = {'count': 0, 'minutes': 0, 'streak': 0};
+  Map<String, double> _skillProgress = {};
 
   List<RecommendationModel>? _recommendations;
   bool _isLoadingRecommendations = false;
@@ -49,14 +53,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadChildProfile() async {
     try {
-      final profiles = await _firebaseService.getChildProfiles();
+      final repository = context.read<SmartDataRepository>();
+      final uid = _firebaseService.currentUser?.uid;
+      if (uid == null) {
+        if (mounted) setState(() => _isLoadingProfile = false);
+        return;
+      }
+      
+      final profiles = await repository.getChildProfiles(uid);
       final selected = profiles.isNotEmpty ? profiles.first : null;
-      final stats = await _firebaseService.getWeeklyStats();
+      final dashboard = await repository.getDashboardData(uid);
+      
       if (mounted) {
         setState(() {
           _allChildren = profiles;
           _childProfile = selected;
-          _weeklyStats = stats;
+          _weeklyStats = dashboard['weeklyStats'] ?? {'count': 0, 'minutes': 0, 'streak': 0};
+          _skillProgress = Map<String, double>.from(dashboard['skillProgress'] ?? {});
           _isLoadingProfile = false;
         });
         if (selected != null) {
@@ -353,6 +366,8 @@ class _DashboardTab extends StatelessWidget {
         // Logout
         IconButton(
           onPressed: () async {
+            await context.read<SyncManager>().stopSync();
+            await LocalCacheService.instance.clearUserData();
             await FirebaseService().signOut();
             if (!context.mounted) return;
             Navigator.pushReplacementNamed(context, '/login');
@@ -938,100 +953,93 @@ class _DashboardTab extends StatelessWidget {
       'Sensory': 0.0,
     };
 
-    return FutureBuilder<Map<String, double>>(
-      future: FirebaseService().getSkillProgress(),
-      builder: (context, snapshot) {
-        final progress = snapshot.data ?? {};
-        // Merge real data into default categories
-        for (final entry in progress.entries) {
-          final key =
-              entry.key.length > 12 ? entry.key.substring(0, 12) : entry.key;
-          skillData[key] = entry.value;
-        }
+    // Use cached dashboard skill progress instead of direct Firebase call
+    for (final entry in _skillProgress.entries) {
+      final key = entry.key.length > 12 ? entry.key.substring(0, 12) : entry.key;
+      skillData[key] = entry.value;
+    }
 
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color:
-                isDark
-                    ? AppColors.darkCardBackground
-                    : AppColors.cardBackground,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: isDark ? [] : AppShadows.soft,
-            border:
-                isDark
-                    ? Border.all(
-                      color: AppColors.darkBorder.withValues(alpha: 0.3),
-                    )
-                    : null,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color:
+            isDark
+                ? AppColors.darkCardBackground
+                : AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: isDark ? [] : AppShadows.soft,
+        border:
+            isDark
+                ? Border.all(
+                  color: AppColors.darkBorder.withValues(alpha: 0.3),
+                )
+                : null,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.insights_rounded,
-                    color: AppColors.primary,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Skill Progress',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+              Icon(
+                Icons.insights_rounded,
+                color: AppColors.primary,
+                size: 20,
               ),
-              const SizedBox(height: 16),
-              ...skillData.entries.map((entry) {
-                final color = _getCategoryColor(entry.key);
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(width: 8),
+              Text(
+                'Skill Progress',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...skillData.entries.map((entry) {
+            final color = _getCategoryColor(entry.key);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            entry.key,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(fontWeight: FontWeight.w600),
-                          ),
-                          Text(
-                            '${(entry.value * 100).toInt()}%',
-                            style: TextStyle(
-                              color: color,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
+                      Text(
+                        entry.key,
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(fontWeight: FontWeight.w600),
                       ),
-                      const SizedBox(height: 6),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: LinearProgressIndicator(
-                          value: entry.value,
-                          backgroundColor: color.withValues(
-                            alpha: isDark ? 0.1 : 0.08,
-                          ),
-                          valueColor: AlwaysStoppedAnimation<Color>(color),
-                          minHeight: 6,
+                      Text(
+                        '${(entry.value * 100).toInt()}%',
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
                   ),
-                );
-              }),
-            ],
-          ),
-        ).animate().fadeIn(delay: 650.ms, duration: 400.ms);
-      },
-    );
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: entry.value,
+                      backgroundColor: color.withValues(
+                        alpha: isDark ? 0.1 : 0.08,
+                      ),
+                      valueColor: AlwaysStoppedAnimation<Color>(color),
+                      minHeight: 6,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    ).animate().fadeIn(delay: 650.ms, duration: 400.ms);
   }
 
   IconData _getCategoryIcon(String category) {
@@ -1452,7 +1460,7 @@ class _DashboardTab extends StatelessWidget {
 
   Widget _buildGuidanceNotesSection(BuildContext context, String childId) {
     return StreamBuilder<List<GuidanceNoteModel>>(
-      stream: FirebaseService().watchGuidanceNotes(childId),
+      stream: context.read<SmartDataRepository>().watchGuidanceNotes(childId),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const SizedBox.shrink();
