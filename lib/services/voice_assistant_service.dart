@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:record/record.dart';
@@ -15,7 +14,6 @@ import 'pcm_audio_player.dart';
 import 'firebase_service.dart';
 import 'context_builder_service.dart';
 import '../core/utils/app_logger.dart';
-import '../core/errors/app_exceptions.dart';
 
 class VoiceAssistantService extends ChangeNotifier {
   final GeminiLiveService _liveService = GeminiLiveService();
@@ -43,7 +41,6 @@ class VoiceAssistantService extends ChangeNotifier {
   StreamSubscription? _msgSub;
   StreamSubscription? _connectivitySub;
   bool _isOnline = true;
-  bool _disposed = false;
 
   Timer? _contextRefreshTimer;
 
@@ -374,7 +371,6 @@ BEHAVIORAL RULES:
 
   @override
   void dispose() {
-    _disposed = true;
     _contextRefreshTimer?.cancel();
     _connectivitySub?.cancel();
     stopSession();

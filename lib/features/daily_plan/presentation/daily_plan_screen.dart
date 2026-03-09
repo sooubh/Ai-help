@@ -692,20 +692,30 @@ class _PlanActivity {
     if (code == null) return Icons.extension_rounded;
 
     // Mapping common icon code points to constant IconData for tree-shaking
-    if (code == Icons.chat_bubble_rounded.codePoint)
+    if (code == Icons.chat_bubble_rounded.codePoint) {
       return Icons.chat_bubble_rounded;
-    if (code == Icons.star_rounded.codePoint) return Icons.star_rounded;
-    if (code == Icons.extension_rounded.codePoint)
+    }
+    if (code == Icons.star_rounded.codePoint) {
+      return Icons.star_rounded;
+    }
+    if (code == Icons.extension_rounded.codePoint) {
       return Icons.extension_rounded;
-    if (code == Icons.fitness_center_rounded.codePoint)
+    }
+    if (code == Icons.fitness_center_rounded.codePoint) {
       return Icons.fitness_center_rounded;
-    if (code == Icons.brush_rounded.codePoint) return Icons.brush_rounded;
-    if (code == Icons.music_note_rounded.codePoint)
+    }
+    if (code == Icons.brush_rounded.codePoint) {
+      return Icons.brush_rounded;
+    }
+    if (code == Icons.music_note_rounded.codePoint) {
       return Icons.music_note_rounded;
-    if (code == Icons.self_improvement_rounded.codePoint)
+    }
+    if (code == Icons.self_improvement_rounded.codePoint) {
       return Icons.self_improvement_rounded;
-    if (code == Icons.psychology_rounded.codePoint)
+    }
+    if (code == Icons.psychology_rounded.codePoint) {
       return Icons.psychology_rounded;
+    }
 
     // If we can't find a constant match, we MUST return a constant default to support tree-shaking
     return Icons.extension_rounded;

@@ -22,7 +22,6 @@ class _BreathingBubbleGameScreenState extends State<BreathingBubbleGameScreen>
   int _cyclesCompleted = 0;
   final int _targetCycles = 5;
   String _instructionText = "Tap start to begin breathing";
-  double _bubbleScale = 1.0;
 
   // Timings
   final int _inhaleTimeMs = 4000;
@@ -33,7 +32,6 @@ class _BreathingBubbleGameScreenState extends State<BreathingBubbleGameScreen>
   bool _isDisposed = false;
 
   late final AnimationController _animController;
-  late final Animation<double> _scaleAnimation;
 
   @override
   void initState() {

@@ -169,8 +169,8 @@ class _ShapeMatcherGameScreenState extends State<ShapeMatcherGameScreen> {
               duration: 200.ms,
             );
       },
-      onWillAccept: (data) => data?.type == shape.type,
-      onAccept: (data) => _handleMatch(shape.type),
+      onWillAcceptWithDetails: (details) => details.data.type == shape.type,
+      onAcceptWithDetails: (details) => _handleMatch(shape.type),
     );
   }
 

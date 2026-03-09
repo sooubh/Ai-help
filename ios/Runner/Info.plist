@@ -28,6 +28,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Requires access to camera.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Requires access to the photo library.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Requires microphone access to listen.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>

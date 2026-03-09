@@ -22,6 +22,22 @@ class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  
+  // ─── In-Memory Cache (Optimization) ───────────────────────────
+  UserModel? _cachedUser;
+  List<ChildProfileModel>? _cachedChildProfiles;
+  final Map<String, List<Map<String, dynamic>>> _cachedDailyPlans = {};
+  Map<String, dynamic>? _cachedWeeklyStats;
+  DateTime? _weeklyStatsCacheTime;
+
+  /// Clear all cache (useful on logout or sign-in)
+  void clearCache() {
+    _cachedUser = null;
+    _cachedChildProfiles = null;
+    _cachedDailyPlans.clear();
+    _cachedWeeklyStats = null;
+    _weeklyStatsCacheTime = null;
+  }
 
   /// Centralized exception handler for Firebase routines
   Future<T> _guard<T>(
@@ -136,6 +152,7 @@ class FirebaseService {
       );
 
       if (credential.user != null) {
+        clearCache();
         await _firestore.collection('users').doc(credential.user!.uid).update({
           'lastLoginAt': Timestamp.fromDate(DateTime.now()),
         });
@@ -192,6 +209,7 @@ class FirebaseService {
 
   /// Sign out (also signs out of Google).
   Future<void> signOut() async {
+    clearCache();
     await GoogleSignIn().signOut();
     await _auth.signOut();
   }
@@ -233,11 +251,13 @@ class FirebaseService {
     return _guard(() async {
       final uid = currentUser?.uid;
       if (uid == null) return null;
+      if (_cachedUser != null) return _cachedUser;
 
       try {
         final doc = await _firestore.collection('users').doc(uid).get();
         if (!doc.exists || doc.data() == null) return null;
-        return UserModel.fromMap(doc.data()!, uid);
+        _cachedUser = UserModel.fromMap(doc.data()!, uid);
+        return _cachedUser;
       } catch (e) {
         // Fallback to cache if network fails
         final doc = await _firestore
@@ -256,6 +276,7 @@ class FirebaseService {
     if (uid == null) throw Exception('User not authenticated');
 
     await _firestore.collection('users').doc(uid).update(fields);
+    _cachedUser = null; // Invalidate cache
   }
 
   // ─── Child Profile ──────────────────────────────────────────────
@@ -273,9 +294,11 @@ class FirebaseService {
 
       if (profile.id != null) {
         await collection.doc(profile.id).set(profile.toMap());
+        _cachedChildProfiles = null; // Invalidate cache
         return profile.id!;
       } else {
         final doc = await collection.add(profile.toMap());
+        _cachedChildProfiles = null; // Invalidate cache
         return doc.id;
       }
     }, operationName: 'saveChildProfile');
@@ -286,6 +309,7 @@ class FirebaseService {
     return _guard(() async {
       final uid = currentUser?.uid;
       if (uid == null) return [];
+      if (_cachedChildProfiles != null) return _cachedChildProfiles!;
 
       try {
         final snapshot =
@@ -295,9 +319,10 @@ class FirebaseService {
                 .collection('children')
                 .orderBy('createdAt', descending: false)
                 .get();
-        return snapshot.docs
+        _cachedChildProfiles = snapshot.docs
             .map((doc) => ChildProfileModel.fromMap(doc.data(), doc.id))
             .toList();
+        return _cachedChildProfiles!;
       } catch (e) {
         // Fallback to cache
         final snapshot = await _firestore
@@ -451,6 +476,8 @@ class FirebaseService {
         .doc(uid)
         .collection('activity_logs')
         .add(log.toMap());
+        
+    _cachedWeeklyStats = null; // Invalidate stats cache
   }
 
   /// Get recent activity logs.
@@ -476,6 +503,13 @@ class FirebaseService {
   Future<Map<String, dynamic>> getWeeklyStats() async {
     final uid = currentUser?.uid;
     if (uid == null) return {'count': 0, 'minutes': 0, 'streak': 0};
+    
+    // Use cache if within 5 minutes
+    if (_cachedWeeklyStats != null && _weeklyStatsCacheTime != null) {
+      if (DateTime.now().difference(_weeklyStatsCacheTime!).inMinutes < 5) {
+        return _cachedWeeklyStats!;
+      }
+    }
 
     final now = DateTime.now();
     final weekAgo = now.subtract(const Duration(days: 7));
@@ -520,11 +554,14 @@ class FirebaseService {
       checkDate = checkDate.subtract(const Duration(days: 1));
     }
 
-    return {
+    _cachedWeeklyStats = {
       'count': logs.length,
       'minutes': (totalSeconds / 60).round(),
       'streak': streak,
     };
+    _weeklyStatsCacheTime = DateTime.now();
+    
+    return _cachedWeeklyStats!;
   }
 
   // ─── Skill Progress (aggregated from activity logs) ────
@@ -613,12 +650,15 @@ class FirebaseService {
           'activities': activities,
           'updatedAt': FieldValue.serverTimestamp(),
         });
+        
+    _cachedDailyPlans[date] = activities; // Update cache
   }
 
   /// Get daily plan for a given date.
   Future<List<Map<String, dynamic>>?> getDailyPlan(String date) async {
     final uid = currentUser?.uid;
     if (uid == null) return null;
+    if (_cachedDailyPlans.containsKey(date)) return _cachedDailyPlans[date];
 
     final doc =
         await _firestore
@@ -631,7 +671,9 @@ class FirebaseService {
     if (!doc.exists) return null;
     final data = doc.data();
     if (data == null || data['activities'] == null) return null;
-    return List<Map<String, dynamic>>.from(data['activities']);
+    
+    _cachedDailyPlans[date] = List<Map<String, dynamic>>.from(data['activities']);
+    return _cachedDailyPlans[date];
   }
 
   // ─── Milestones CRUD ───────────────────────────────────
@@ -770,7 +812,7 @@ class FirebaseService {
       stepsCompleted: session.stepsCompleted,
       completedAt: session.completedAt,
     );
-    await logActivity(activityLog);
+    await logActivity(activityLog); // This already invalidates _cachedWeeklyStats
   }
 
   /// Get therapy sessions, optionally filtered by skill category.

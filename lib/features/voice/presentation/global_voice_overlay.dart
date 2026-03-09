@@ -117,7 +117,6 @@ class _GlobalVoiceOverlayState extends State<GlobalVoiceOverlay>
             animation: _pulseController,
             builder: (context, child) {
               final isAnimating = isListening || isSpeaking || isProcessing;
-              double opacity = 1.0;
               double boxShadowSpread =
                   isAnimating ? (_pulseController.value * 5) : 1;
 

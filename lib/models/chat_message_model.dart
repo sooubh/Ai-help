@@ -7,12 +7,14 @@ class ChatMessageModel {
   final String message;
   final String sender; // 'user' or 'ai'
   final DateTime timestamp;
+  final String? imagePath;
 
   ChatMessageModel({
     required this.id,
     required this.message,
     required this.sender,
     required this.timestamp,
+    this.imagePath,
   });
 
   bool get isUser => sender == 'user';
@@ -24,6 +26,7 @@ class ChatMessageModel {
       message: map['message'] ?? '',
       sender: map['sender'] ?? 'user',
       timestamp: (map['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      imagePath: map['imagePath'],
     );
   }
 
@@ -33,6 +36,7 @@ class ChatMessageModel {
       'message': message,
       'sender': sender,
       'timestamp': Timestamp.fromDate(timestamp),
+      if (imagePath != null) 'imagePath': imagePath,
     };
   }
 }
