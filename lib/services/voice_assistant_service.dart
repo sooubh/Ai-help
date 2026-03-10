@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:record/record.dart';
@@ -17,6 +18,10 @@ import 'cache/smart_data_repository.dart';
 import '../core/utils/app_logger.dart';
 
 class VoiceAssistantService extends ChangeNotifier {
+  // RMS amplitude threshold below which audio is treated as silence/noise.
+  // PCM16 range is 0–32768. 400 ≈ -38 dBFS — filters fans, AC, background TV.
+  static const double _kNoiseFloor = 400.0;
+
   final GeminiLiveService _liveService = GeminiLiveService();
   final PcmAudioPlayer _audioPlayer = PcmAudioPlayer();
   final AudioRecorder _audioRecorder = AudioRecorder();
@@ -154,7 +159,7 @@ BEHAVIORAL RULES:
       }
     });
 
-    // FIX: Start mic ONLY after setupComplete is received from API
+    // Start mic ONLY after setupComplete is received from API
     _msgSub = _liveService.messagesStream.listen((msg) async {
       if (msg.containsKey('setupComplete')) {
         AppLogger.info(
@@ -163,6 +168,18 @@ BEHAVIORAL RULES:
         );
         await _startMicStreaming();
         _updateStatus(VoiceStatus.listening);
+        return;
+      }
+
+      // In the Gemini Live API, function/tool calls arrive as a SEPARATE
+      // top-level "toolCall" message — NOT inside serverContent.modelTurn.
+      if (msg.containsKey('toolCall')) {
+        final calls = msg['toolCall']['functionCalls'] as List?;
+        if (calls != null) {
+          for (final call in calls) {
+            _handleFunctionCall(call as Map<String, dynamic>);
+          }
+        }
         return;
       }
 
@@ -179,16 +196,6 @@ BEHAVIORAL RULES:
         if (content['interrupted'] == true) {
           await _audioPlayer.stop();
           _updateStatus(VoiceStatus.listening);
-        }
-
-        // Handle function calls
-        if (content.containsKey('modelTurn')) {
-          final parts = content['modelTurn']['parts'] as List;
-          for (final part in parts) {
-            if (part.containsKey('functionCall')) {
-              _handleFunctionCall(part['functionCall']);
-            }
-          }
         }
       }
     });
@@ -208,6 +215,13 @@ BEHAVIORAL RULES:
     _micSub = stream.listen(
       (data) {
         _updateWaveform(data);
+        // Gate 1: don't send audio while AI is speaking.
+        // Prevents the AI's own speaker output or ambient noise from
+        // triggering Gemini's VAD and causing unwanted interruptions.
+        if (isSpeaking) return;
+        // Gate 2: RMS energy check — ignore sub-threshold noise chunks
+        // (background hum, fan, AC, TV, etc.) before sending to Gemini.
+        if (!_rmsExceedsThreshold(data)) return;
         _liveService.sendAudioChunk(data);
       },
       onError: (e, stack) {
@@ -240,6 +254,22 @@ BEHAVIORAL RULES:
     notifyListeners();
   }
 
+  /// Returns true when the RMS amplitude of [data] exceeds [_kNoiseFloor].
+  /// Filters out background noise (fans, AC, ambient sound) so only genuine
+  /// speech reaches the Gemini WebSocket.
+  bool _rmsExceedsThreshold(Uint8List data) {
+    if (data.length < 2) return false;
+    final sampleCount = data.length ~/ 2;
+    double sumSq = 0;
+    for (int i = 0; i < sampleCount; i++) {
+      int sample = (data[i * 2 + 1] << 8) | data[i * 2];
+      if (sample > 32767) sample -= 65536;
+      sumSq += sample * sample;
+    }
+    final rms = math.sqrt(sumSq / sampleCount);
+    return rms > _kNoiseFloor;
+  }
+
   Future<void> interruptAI() async {
     if (isSpeaking) {
       await _audioPlayer.stop();
@@ -249,69 +279,99 @@ BEHAVIORAL RULES:
   }
 
   void _handleFunctionCall(Map<String, dynamic> call) {
-    if (call['name'] == 'perform_app_action') {
-      final args = call['args'] as Map<String, dynamic>;
-      final action = args['action'];
-      final target = args['target'];
+    // Live API format: {"id": "...", "name": "...", "args": {...}}
+    final callId = call['id'] as String? ?? '';
+    final name = call['name'] as String?;
+    final args = (call['args'] as Map?)?.cast<String, dynamic>() ?? {};
+
+    String result = 'error';
+
+    if (name == 'perform_app_action') {
+      final action = args['action'] as String?;
+      final target = args['target'] as String?;
 
       if (action == 'navigate' && target != null) {
-        _navigateToTarget(target);
+        final navigated = _navigateToTarget(target);
+        result = navigated ? 'success' : 'unknown_target';
+
+        if (!navigated) {
+          // Tell Gemini the target wasn't found so it gives a verbal fallback
+          Future.delayed(const Duration(milliseconds: 300), () {
+            _liveService.sendClientContent(
+              'Navigation failed: screen "$target" was not recognised. '
+              'Tell the user the available screens they can go to: '
+              'Home, Chat, Activities, Progress, Daily Plan, Wellness, '
+              'Games, Emergency, Community, Settings, Achievements.',
+            );
+          });
+        }
       }
 
-      final response = {
-        "clientContent": {
-          "turns": [
+      // Correct Gemini Live API tool-response envelope (requires the call id)
+      _liveService.sendJson({
+        "toolResponse": {
+          "functionResponses": [
             {
-              "role": "user",
-              "parts": [
-                {
-                  "functionResponse": {
-                    "name": "perform_app_action",
-                    "response": {"result": "Success"},
-                  },
-                },
-              ],
+              "id": callId,
+              "name": "perform_app_action",
+              "response": {"result": result},
             },
           ],
-          "turnComplete": true,
         },
-      };
-      _liveService.sendJson(response);
+      });
     }
   }
 
-  void _navigateToTarget(String target) {
-    String route = '/home';
-    switch (target.toLowerCase()) {
-      case 'dashboard':
-        route = '/home';
-        break;
-      case 'wellness':
-        route = '/wellness';
-        break;
-      case 'daily plan':
-        route = '/daily-plan';
-        break;
-      case 'games':
-        route = '/games';
-        break;
-      case 'emergency':
-        route = '/emergency';
-        break;
-      case 'progress':
-        route = '/progress';
-        break;
-      case 'community':
-        route = '/community';
-        break;
-      case 'activities':
-        route = '/activities';
-        break;
-      case 'settings':
-        route = '/settings';
-        break;
-    }
-    navigatorKey.currentState?.pushNamedAndRemoveUntil(route, (r) => r.isFirst);
+  /// Maps a voice-spoken target name to a Flutter route and navigates to it.
+  /// Returns `true` if a matching route was found, `false` if the target is
+  /// unrecognised (so the caller can trigger a verbal fallback).
+  bool _navigateToTarget(String target) {
+    const routeMap = <String, String>{
+      // Home / Dashboard
+      'home': '/home', 'dashboard': '/home', 'main': '/home',
+      'start': '/home', 'overview': '/home',
+      // Chat
+      'chat': '/chat', 'assistant': '/chat', 'ai': '/chat',
+      // Activities / Modules
+      'activities': '/activities', 'activity': '/activities',
+      'modules': '/activities', 'library': '/activities',
+      // Progress
+      'progress': '/progress', 'report': '/progress',
+      'stats': '/progress', 'statistics': '/progress',
+      // Daily plan
+      'daily plan': '/daily-plan', 'dailyplan': '/daily-plan',
+      'plan': '/daily-plan', 'daily': '/daily-plan',
+      'schedule': '/daily-plan', 'tasks': '/daily-plan',
+      // Wellness
+      'wellness': '/wellness', 'wellbeing': '/wellness',
+      'health': '/wellness', 'mood': '/wellness',
+      // Games
+      'games': '/games', 'game': '/games', 'play': '/games',
+      // Emergency
+      'emergency': '/emergency', 'sos': '/emergency',
+      'help': '/emergency', 'crisis': '/emergency',
+      // Community
+      'community': '/community', 'social': '/community',
+      'forum': '/community',
+      // Settings
+      'settings': '/settings', 'preferences': '/settings',
+      'options': '/settings', 'configuration': '/settings',
+      // Achievements
+      'achievements': '/achievements', 'achievement': '/achievements',
+      'badges': '/achievements', 'rewards': '/achievements',
+      // About
+      'about': '/about',
+    };
+
+    final route = routeMap[target.toLowerCase().trim()];
+    if (route == null) return false;
+
+    navigatorKey.currentState?.pushNamedAndRemoveUntil(
+      route,
+      (r) => r.isFirst,
+    );
+    AppLogger.info('VoiceAssistantService', 'Navigated to $route');
+    return true;
   }
 
   Future<void> stopSession() async {

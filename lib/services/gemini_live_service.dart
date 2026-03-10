@@ -60,6 +60,19 @@ class GeminiLiveService {
           "generation_config": {
             "response_modalities": ["AUDIO"],
           },
+          // Server-side VAD: require clearer speech before triggering,
+          // and wait longer in silence before ending a turn.
+          // This prevents background noise, fans, AC, and TV from being
+          // treated as valid user speech.
+          "realtime_input_config": {
+            "automatic_activity_detection": {
+              "disabled": false,
+              "start_of_speech_sensitivity": "START_SENSITIVITY_LOW",
+              "end_of_speech_sensitivity": "END_SENSITIVITY_LOW",
+              "prefix_padding_ms": 100,
+              "silence_duration_ms": 800,
+            },
+          },
           "system_instruction": {
             "parts": [
               {"text": systemInstruction},
