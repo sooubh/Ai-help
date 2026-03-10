@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:path_provider/path_provider.dart';
 import '../../core/utils/app_logger.dart';
 
 class LocalCacheService {
@@ -110,11 +109,11 @@ class LocalCacheService {
   /// Create a full backup of all cached data
   Future<void> createBackup(String userId) async {
     try {
-      final backupData = {
+      final backupData = <String, dynamic>{
         'userId': userId,
         'timestamp': DateTime.now().toIso8601String(),
         'version': '1.0',
-        'data': {}
+        'data': <String, dynamic>{}
       };
 
       // Backup all current cache entries

@@ -48,7 +48,7 @@ class _DailyPlanScreenState extends State<DailyPlanScreen> {
       if (saved != null && saved.isNotEmpty) {
         // Load from Firestore
         setState(() {
-          _activities = saved.map((a) => _PlanActivity.fromMap(a as Map<String, dynamic>)).toList();
+          _activities = saved.map((a) => _PlanActivity.fromMap(a)).toList();
           _isLoading = false;
         });
       } else {

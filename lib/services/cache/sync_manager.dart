@@ -3,13 +3,11 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'local_cache_service.dart';
 import 'smart_data_repository.dart';
-import '../firebase_service.dart';
 import '../../core/utils/app_logger.dart';
 
 class SyncManager {
   final SmartDataRepository _repository;
   final LocalCacheService _cache = LocalCacheService.instance;
-  final FirebaseService _firebaseService;
 
   Timer? _backupTimer;
   Timer? _syncTimer;
@@ -22,7 +20,7 @@ class SyncManager {
   static const _periodicSyncInterval = Duration(hours: 1);
   static const _dailyFirebaseUpdateInterval = Duration(hours: 24);
 
-  SyncManager(this._repository, this._firebaseService);
+  SyncManager(this._repository);
 
   /// Call this after user logs in
   Future<void> startSync(String userId) async {

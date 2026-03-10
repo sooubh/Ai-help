@@ -446,7 +446,6 @@ void main() async {
           Provider<SyncManager>(
             create: (ctx) => SyncManager(
               ctx.read<SmartDataRepository>(),
-              ctx.read<FirebaseService>(),
             ),
           ),
         ],

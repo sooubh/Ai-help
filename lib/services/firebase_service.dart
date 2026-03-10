@@ -27,16 +27,12 @@ class FirebaseService {
   UserModel? _cachedUser;
   List<ChildProfileModel>? _cachedChildProfiles;
   final Map<String, List<Map<String, dynamic>>> _cachedDailyPlans = {};
-  Map<String, dynamic>? _cachedWeeklyStats;
-  DateTime? _weeklyStatsCacheTime;
 
   /// Clear all cache (useful on logout or sign-in)
   void clearCache() {
     _cachedUser = null;
     _cachedChildProfiles = null;
     _cachedDailyPlans.clear();
-    _cachedWeeklyStats = null;
-    _weeklyStatsCacheTime = null;
   }
 
   /// Centralized exception handler for Firebase routines
@@ -477,8 +473,6 @@ class FirebaseService {
         .doc(uid)
         .collection('activity_logs')
         .add(log.toMap());
-        
-    _cachedWeeklyStats = null; // Invalidate stats cache
   }
 
   /// Get recent activity logs.

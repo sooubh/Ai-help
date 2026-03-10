@@ -158,6 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onRefresh: _loadChildProfile,
             onSwitchChild: _switchChild,
             weeklyStats: _weeklyStats,
+            skillProgress: _skillProgress,
             recommendations: _recommendations,
             isLoadingRecommendations: _isLoadingRecommendations,
           ),
@@ -239,6 +240,7 @@ class _DashboardTab extends StatelessWidget {
   final VoidCallback onRefresh;
   final ValueChanged<ChildProfileModel> onSwitchChild;
   final Map<String, dynamic> weeklyStats;
+  final Map<String, double> skillProgress;
   final List<RecommendationModel>? recommendations;
   final bool isLoadingRecommendations;
 
@@ -249,6 +251,7 @@ class _DashboardTab extends StatelessWidget {
     required this.onRefresh,
     required this.onSwitchChild,
     required this.weeklyStats,
+    required this.skillProgress,
     required this.recommendations,
     required this.isLoadingRecommendations,
   });
@@ -972,7 +975,7 @@ class _DashboardTab extends StatelessWidget {
     };
 
     // Use cached dashboard skill progress instead of direct Firebase call
-    for (final entry in _skillProgress.entries) {
+    for (final entry in skillProgress.entries) {
       final key = entry.key.length > 12 ? entry.key.substring(0, 12) : entry.key;
       skillData[key] = entry.value;
     }
