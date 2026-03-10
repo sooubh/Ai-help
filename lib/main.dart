@@ -1,11 +1,16 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:workmanager/workmanager.dart';
 
 import 'firebase_options.dart';
 import 'core/config/env_config.dart';
@@ -49,6 +54,234 @@ import 'services/voice_assistant_service.dart';
 import 'services/cache/local_cache_service.dart';
 import 'services/cache/smart_data_repository.dart';
 import 'services/cache/sync_manager.dart';
+
+// ─── WorkManager Callback (top-level, separate isolate) ──────────────────────
+// Must be top-level (not inside a class) and annotated with
+// @pragma('vm:entry-point') so the AOT compiler keeps it in release builds.
+//
+// RULES:
+//  - Zero Firebase / network calls — Hive cache reads ONLY
+//  - Every Hive read wrapped in its own try/catch with a safe fallback
+//  - If the Hive box itself fails to open → show a generic fallback notification
+//    and return true so WorkManager does not retry immediately
+
+@pragma('vm:entry-point')
+void callbackDispatcher() {
+  Workmanager().executeTask((taskName, inputData) async {
+    // ── 1. Flutter bindings (required in headless isolate) ──────────────────
+    WidgetsFlutterBinding.ensureInitialized();
+
+    // ── 2. Re-initialise flutter_local_notifications in this isolate ────────
+    final plugin = FlutterLocalNotificationsPlugin();
+    try {
+      await plugin.initialize(
+        settings: const InitializationSettings(
+          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          iOS: DarwinInitializationSettings(),
+        ),
+      );
+    } catch (_) {}
+
+    // Reusable notification detail constants (no const for runtime channel IDs)
+    const androidProgress = AndroidNotificationDetails(
+      'progress_channel', 'Progress Updates',
+      channelDescription: 'Regular progress updates for your child',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+    );
+    const androidInactivity = AndroidNotificationDetails(
+      'inactivity_channel', 'Inactivity Reminders',
+      channelDescription: "Reminders when you haven't used the app in a while.",
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
+      icon: '@mipmap/ic_launcher',
+    );
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentSound: true,
+    );
+
+    // ── 3. Handle inactivityTask ─────────────────────────────────────────────
+    if (taskName == 'inactivityTask') {
+      try {
+        final notifId = inputData?['notifId'] as int? ?? 401;
+        final title = inputData?['title'] as String? ?? 'Come back!';
+        final body =
+            inputData?['body'] as String? ?? 'Your child needs you today.';
+        final payload = inputData?['payload'] as String? ?? 'progress';
+        await plugin.show(
+          id: notifId,
+          title: title,
+          body: body,
+          notificationDetails: const NotificationDetails(
+            android: androidInactivity,
+            iOS: iosDetails,
+          ),
+          payload: payload,
+        );
+      } catch (e) {
+        debugPrint('[callbackDispatcher] inactivityTask error: $e');
+      }
+      return Future.value(true);
+    }
+
+    // ── 4. Ignore unknown tasks ──────────────────────────────────────────────
+    if (taskName != 'progressUpdateTask') return Future.value(false);
+
+    // ── 5. progressUpdateTask — read Hive cache, NO Firebase ────────────────
+
+    // Helper: safe fallback notification when cache is unavailable
+    Future<void> showFallback() async {
+      try {
+        await plugin.show(
+          id: 300,
+          title: 'CARE-AI Progress Update',
+          body: 'Keep up the great work today!',
+          notificationDetails: const NotificationDetails(
+            android: androidProgress,
+            iOS: iosDetails,
+          ),
+          payload: 'progress',
+        );
+      } catch (_) {}
+    }
+
+    try {
+      // ── 5a. Open the Hive data box safely ─────────────────────────────────
+      try {
+        await Hive.initFlutter();
+      } catch (_) {
+        // Already initialised in this isolate — safe to continue
+      }
+
+      late Box dataBox;
+      try {
+        dataBox = Hive.isBoxOpen('care_ai_data')
+            ? Hive.box('care_ai_data')
+            : await Hive.openBox('care_ai_data');
+      } catch (e) {
+        debugPrint('[callbackDispatcher] Hive box open failed: $e');
+        await showFallback();
+        return Future.value(true);
+      }
+
+      // ── 5b. Read weekly_stats ──────────────────────────────────────────────
+      int activitiesCount = 0;
+      int streakDays = 0;
+      try {
+        // Service may persist under 'weekly_stats' or inside 'dashboard_data'
+        final wsRaw = dataBox.get('weekly_stats') as String?;
+        if (wsRaw != null) {
+          final stats = jsonDecode(wsRaw) as Map<String, dynamic>;
+          // Support both {activitiesCount, streakDays} and {count, streak}
+          activitiesCount =
+              (stats['activitiesCount'] as num? ?? stats['count'] as num?)
+                  ?.toInt() ??
+                  0;
+          streakDays =
+              (stats['streakDays'] as num? ?? stats['streak'] as num?)
+                  ?.toInt() ??
+                  0;
+        } else {
+          // Fallback: extract from dashboard_data
+          final ddRaw = dataBox.get('dashboard_data') as String?;
+          if (ddRaw != null) {
+            final dd = jsonDecode(ddRaw) as Map<String, dynamic>;
+            final ws = dd['weeklyStats'] as Map<String, dynamic>? ?? {};
+            activitiesCount = (ws['count'] as num?)?.toInt() ?? 0;
+            streakDays = (ws['streak'] as num?)?.toInt() ?? 0;
+          }
+        }
+      } catch (_) {}
+
+      // ── 5c. Read child name ────────────────────────────────────────────────
+      String childName = 'your child';
+      try {
+        // Try 'children_list' (spec key) then 'child_profiles' (actual key)
+        final raw = (dataBox.get('children_list') ??
+                dataBox.get('child_profiles')) as String?;
+        if (raw != null) {
+          final list = jsonDecode(raw) as List<dynamic>;
+          if (list.isNotEmpty) {
+            final first = list.first;
+            if (first is Map) {
+              // Handle {name: ...} and {data: {name: ...}, id: ...} formats
+              final data = first['data'] as Map?;
+              childName = (data?['name'] as String?) ??
+                  (first['name'] as String?) ??
+                  'your child';
+            }
+          }
+        }
+      } catch (_) {}
+
+      // ── 5d. Read daily_plan ────────────────────────────────────────────────
+      int completedTasks = 0;
+      int totalTasks = 0;
+      try {
+        final today = DateTime.now().toIso8601String().substring(0, 10);
+        // Try 'daily_plan' (spec key) then date-keyed 'daily_plan_YYYY-MM-DD'
+        final raw = (dataBox.get('daily_plan') ??
+                dataBox.get('daily_plan_$today')) as String?;
+        if (raw != null) {
+          final plan = jsonDecode(raw) as List<dynamic>;
+          totalTasks = plan.length;
+          completedTasks = plan
+              .whereType<Map<String, dynamic>>()
+              .where((t) => t['isCompleted'] == true)
+              .length;
+        }
+      } catch (_) {}
+
+      // ── 5e. Build dynamic message (rotates by hour) ───────────────────────
+      final variant = DateTime.now().hour % 3;
+      String notifTitle;
+      String notifBody;
+
+      switch (variant) {
+        case 0:
+          notifTitle = 'Great progress!';
+          notifBody = activitiesCount > 0
+              ? '$childName has completed $activitiesCount activities this week!'
+              : 'Keep going — every activity counts for $childName!';
+          break;
+        case 1:
+          notifTitle =
+              streakDays > 1 ? '$streakDays-day streak!' : 'Start your streak!';
+          notifBody = streakDays > 1
+              ? '$streakDays-day streak going strong! Keep it up.'
+              : "Log an activity today to start $childName's streak!";
+          break;
+        default:
+          notifTitle = "Today's plan";
+          notifBody = totalTasks > 0
+              ? '$completedTasks/$totalTasks tasks done today. '
+                  "You're doing great!"
+              : "Open the app to check today's plan for $childName.";
+      }
+
+      // ── 5f. Show notification ──────────────────────────────────────────────
+      await plugin.show(
+        id: 300,
+        title: notifTitle,
+        body: notifBody,
+        notificationDetails: const NotificationDetails(
+          android: androidProgress,
+          iOS: iosDetails,
+        ),
+        payload: 'progress',
+      );
+    } catch (e) {
+      debugPrint('[callbackDispatcher] progressUpdateTask error: $e');
+      await showFallback();
+    }
+
+    return Future.value(true);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 /// Entry point for CARE-AI.
 /// Initializes Firebase, validates environment, sets up providers,
@@ -153,6 +386,32 @@ void main() async {
       debugPrint('Notification service init failed: $e');
     }
 
+    // Initialize WorkManager for background tasks and register the
+    // 3-hour progress update periodic task.
+    try {
+      await Workmanager().initialize(callbackDispatcher);
+      await notificationService.scheduleProgressUpdateNotifications();
+    } catch (e) {
+      debugPrint('WorkManager init failed: $e');
+    }
+
+    // Battery optimization exemption (Android only, asked once)
+    try {
+      await notificationService.requestBatteryExemption();
+    } catch (e) {
+      debugPrint('Battery exemption request failed: $e');
+    }
+
+    // Reset inactivity countdown on every app launch
+    try {
+      await Workmanager().cancelByUniqueName(NotificationService.inactivity2dUniqueName);
+      await Workmanager().cancelByUniqueName(NotificationService.inactivity5dUniqueName);
+      await Workmanager().cancelByUniqueName(NotificationService.inactivity7dUniqueName);
+      await notificationService.scheduleInactivityReminders();
+    } catch (e) {
+      debugPrint('Inactivity tasks reset failed: $e');
+    }
+
     // Load saved theme preference
     final themeProvider = ThemeProvider();
     try {
@@ -168,6 +427,10 @@ void main() async {
         statusBarIconBrightness: Brightness.dark,
       ),
     );
+
+    // Give NotificationService access to the navigator so tapped
+    // notifications can route to the correct screen.
+    NotificationService.setNavigatorKey(navigatorKey);
 
     runApp(
       MultiProvider(

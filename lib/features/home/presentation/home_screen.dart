@@ -20,6 +20,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../../models/recommendation_model.dart';
 import '../../../models/guidance_note_model.dart';
 import '../../../services/ai_service.dart';
+import '../../../services/notification_service.dart';
 import '../../../services/permission_service.dart';
 
 /// Premium Smart Dashboard — central hub of the CARE-AI user app.
@@ -73,12 +74,29 @@ class _HomeScreenState extends State<HomeScreen> {
           _isLoadingProfile = false;
         });
         if (selected != null) {
+          _checkStreakWarning();
           _fetchRecommendations(selected);
         }
       }
     } catch (_) {
       if (mounted) setState(() => _isLoadingProfile = false);
     }
+  }
+
+  /// Shows a streak-at-risk notification after 6 PM if the user has an
+  /// active streak but has not logged any activity today (FIX 8).
+  Future<void> _checkStreakWarning() async {
+    if (DateTime.now().hour < 18) return;
+    final streak = _weeklyStats['streak'] as int? ?? 0;
+    if (streak <= 0) return;
+    final today = DateTime.now();
+    final todayKey =
+        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    final dailyCounts = _weeklyStats['dailyCounts'];
+    final todayCount =
+        (dailyCounts is Map ? dailyCounts[todayKey] as int? : null) ?? 0;
+    if (todayCount > 0) return;
+    await NotificationService().showStreakWarning(streakDays: streak);
   }
 
   void _switchChild(ChildProfileModel child) {

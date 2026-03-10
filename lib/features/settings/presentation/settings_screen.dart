@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:workmanager/workmanager.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/theme/theme_provider.dart';
@@ -20,6 +22,8 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final _notificationService = NotificationService();
   bool _notificationsEnabled = true;
+  bool _dailyReminderEnabled = true;
+  bool _progressNotifEnabled = true;
   TimeOfDay _reminderTime = const TimeOfDay(hour: 9, minute: 0);
   bool _isExporting = false;
 
@@ -31,11 +35,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadNotificationPref() async {
     final enabled = await _notificationService.isEnabled();
-    final time = await _notificationService.getReminderTime();
+    final prefs = await SharedPreferences.getInstance();
+    final hour = prefs.getInt('reminder_hour') ?? 9;
+    final minute = prefs.getInt('reminder_minute') ?? 0;
     if (mounted) {
       setState(() {
         _notificationsEnabled = enabled;
-        _reminderTime = time;
+        _reminderTime = TimeOfDay(hour: hour, minute: minute);
+        _dailyReminderEnabled =
+            prefs.getBool('daily_reminder_enabled') ?? true;
+        _progressNotifEnabled =
+            prefs.getBool('progress_notifications_enabled') ?? true;
       });
     }
   }
@@ -75,6 +85,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       );
     }
+  }
+
+  Future<void> _toggleDailyReminder(bool value) async {
+    setState(() => _dailyReminderEnabled = value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('daily_reminder_enabled', value);
+    if (value) {
+      await _notificationService.scheduleDailyReminder(
+        hour: _reminderTime.hour,
+        minute: _reminderTime.minute,
+      );
+    } else {
+      await _notificationService.cancel(NotificationService.dailyReminderId);
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          value ? 'Daily reminder enabled' : 'Daily reminder disabled',
+        ),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _toggleProgressNotif(bool value) async {
+    setState(() => _progressNotifEnabled = value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('progress_notifications_enabled', value);
+    if (value) {
+      await _notificationService.scheduleProgressUpdateNotifications();
+    } else {
+      await Workmanager().cancelByUniqueName('care_ai_progress_update');
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          value
+              ? 'Progress reminders enabled (every 3 hours)'
+              : 'Progress reminders disabled',
+        ),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   Future<void> _exportData() async {
@@ -236,17 +293,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             if (_notificationsEnabled)
               _SettingsTile(
-                icon: Icons.access_time_rounded,
-                title: 'Reminder Time',
-                subtitle: 'Choose when to receive daily check-ins',
-                trailing: Text(
-                  _reminderTime.format(context),
-                  style: const TextStyle(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.bold,
-                  ),
+                icon: Icons.alarm_rounded,
+                title: 'Daily Reminder',
+                subtitle: 'Morning check-in notification at saved time',
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap:
+                          _dailyReminderEnabled ? _selectReminderTime : null,
+                      child: Chip(
+                        label: Text(
+                          _reminderTime.format(context),
+                          style: TextStyle(
+                            color:
+                                _dailyReminderEnabled
+                                    ? AppColors.primary
+                                    : AppColors.textTertiary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                        backgroundColor:
+                            _dailyReminderEnabled
+                                ? AppColors.primarySurface
+                                : Colors.grey.withValues(alpha: 0.1),
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                        side: BorderSide.none,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Switch.adaptive(
+                      value: _dailyReminderEnabled,
+                      onChanged: _toggleDailyReminder,
+                      activeTrackColor: AppColors.primary,
+                    ),
+                  ],
                 ),
-                onTap: _selectReminderTime,
+              ),
+            if (_notificationsEnabled)
+              _SettingsTile(
+                icon: Icons.bar_chart_rounded,
+                title: 'Progress Reminders (every 3 hours)',
+                subtitle: 'Background updates on activities and streaks',
+                trailing: Switch.adaptive(
+                  value: _progressNotifEnabled,
+                  onChanged: _toggleProgressNotif,
+                  activeTrackColor: AppColors.primary,
+                ),
               ),
 
             const SizedBox(height: 20),
@@ -324,6 +419,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 );
                 if (confirm != true || !context.mounted) return;
                 await FirebaseService().signOut();
+                await Workmanager().cancelByUniqueName('care_ai_progress_update');
+                await NotificationService().cancelAll();
                 if (!context.mounted) return;
                 Navigator.pushReplacementNamed(context, '/login');
               },
