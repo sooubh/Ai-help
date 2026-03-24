@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function roleOf(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.role;
+    }
+
+    function isDoctor() {
+      return signedIn() && roleOf(request.auth.uid) == 'doctor';
+    }
+
+    function isParentOfChild(childId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)/children/$(childId));
+    }
+
+    match /users/{uid} {
+      allow create: if isOwner(uid);
+      allow read, update, delete: if isOwner(uid) || isDoctor();
+
+      match /children/{childId} {
+        allow read: if isOwner(uid) || isDoctor();
+        allow write: if isOwner(uid) || isDoctor();
+      }
+
+      match /activity_logs/{logId} {
+        allow read: if isOwner(uid) || isDoctor();
+        allow write: if isOwner(uid);
+      }
+
+      match /{document=**} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    match /community_posts/{postId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.authorId == request.auth.uid;
+      allow update: if signedIn();
+      allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+    }
+
+    match /guidance_notes/{noteId} {
+      allow create: if isDoctor() && request.resource.data.doctorId == request.auth.uid;
+      allow read: if isDoctor() || isParentOfChild(resource.data.childId);
+      allow update: if isDoctor() || isParentOfChild(resource.data.childId);
+      allow delete: if isDoctor() && resource.data.doctorId == request.auth.uid;
+    }
+
+    match /doctor_requests/{requestId} {
+      allow read: if isDoctor() && resource.data.doctorId == request.auth.uid;
+      allow update: if isDoctor() && resource.data.doctorId == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.parentId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    match /user_backups/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    match /user_daily_snapshots/{uid}/snapshots/{snapshotId} {
+      allow read, write: if isOwner(uid);
+    }
+  }
+}

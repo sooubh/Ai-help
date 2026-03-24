@@ -149,9 +149,12 @@ class FirebaseService {
 
       if (credential.user != null) {
         clearCache();
-        await _firestore.collection('users').doc(credential.user!.uid).update({
+        await _firestore.collection('users').doc(credential.user!.uid).set({
+          'uid': credential.user!.uid,
+          'email': credential.user!.email ?? email.trim(),
+          'displayName': credential.user!.displayName,
           'lastLoginAt': Timestamp.fromDate(DateTime.now()),
-        });
+        }, SetOptions(merge: true));
       }
 
       return credential.user;
