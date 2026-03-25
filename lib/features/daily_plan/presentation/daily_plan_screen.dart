@@ -6,9 +6,10 @@ import '../../../services/cloud_functions_service.dart';
 import '../../../services/cache/smart_data_repository.dart';
 import 'package:provider/provider.dart';
 import '../../../models/child_profile_model.dart';
+import 'package:intl/intl.dart';
 
-/// Daily Plan screen — loads today's plan from Firestore.
-/// Falls back to auto-generated plan from child profile if none saved.
+/// Daily Plan screen — loads plans for any day with full CRUD capabilities.
+/// Features: day picker, add/edit/delete activities, future scheduling.
 class DailyPlanScreen extends StatefulWidget {
   const DailyPlanScreen({super.key});
 
@@ -21,20 +22,31 @@ class _DailyPlanScreenState extends State<DailyPlanScreen> {
   final _cloudFunctionsService = CloudFunctionsService();
   List<_PlanActivity> _activities = [];
   bool _isLoading = true;
+  late DateTime _selectedDate;
 
-  String get _todayKey {
-    final now = DateTime.now();
-    return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  @override
+  void initState() {
+    super.initState();
+    _selectedDate = DateTime.now();
+    _loadPlan();
   }
+
+  String _dateKey(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+  }
+
+  String get _todayKey => _dateKey(_selectedDate);
 
   int get _completedCount =>
       _activities.where((a) => a.status == _Status.completed).length;
   double get _adherencePercent =>
       _activities.isEmpty ? 0 : _completedCount / _activities.length;
 
-  @override
-  void initState() {
-    super.initState();
+  void _selectDate(DateTime date) {
+    setState(() {
+      _selectedDate = date;
+      _isLoading = true;
+    });
     _loadPlan();
   }
 
@@ -47,16 +59,26 @@ class _DailyPlanScreenState extends State<DailyPlanScreen> {
       final saved = await repository.getDailyPlan(uid, _todayKey);
       if (saved != null && saved.isNotEmpty) {
         // Load from Firestore
-        setState(() {
-          _activities = saved.map((a) => _PlanActivity.fromMap(a)).toList();
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _activities = saved.map((a) => _PlanActivity.fromMap(a)).toList();
+            _isLoading = false;
+          });
+        }
       } else {
-        // Auto-generate based on child profile
-        await _generatePlan();
+        // Auto-generate only for today, empty for future dates
+        if (_dateKey(_selectedDate) == _dateKey(DateTime.now())) {
+          await _generatePlan();
+        } else {
+          if (mounted) setState(() => _isLoading = false);
+        }
       }
     } catch (_) {
-      await _generatePlan();
+      if (_dateKey(_selectedDate) == _dateKey(DateTime.now())) {
+        await _generatePlan();
+      } else {
+        if (mounted) setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -229,45 +251,135 @@ class _DailyPlanScreenState extends State<DailyPlanScreen> {
 
   void _updateStatus(int index, _Status status) {
     setState(() => _activities[index].status = status);
-    _savePlan(); // Persist change to Firestore
+    _savePlan();
+  }
+
+  Future<void> _addActivity(_PlanActivity activity) async {
+    setState(() => _activities.add(activity));
+    await _savePlan();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Activity added! ✅'), backgroundColor: AppColors.success),
+    );
+  }
+
+  Future<void> _updateActivity(int index, _PlanActivity activity) async {
+    setState(() => _activities[index] = activity);
+    await _savePlan();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Activity updated! ✏️'), backgroundColor: AppColors.primary),
+    );
+  }
+
+  Future<void> _deleteActivity(int index) async {
+    setState(() => _activities.removeAt(index));
+    await _savePlan();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Activity removed! 🗑️'), backgroundColor: AppColors.textTertiary),
+    );
+  }
+
+  void _showAddActivityDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => _AddActivityDialog(
+        onAdd: _addActivity,
+        selectedDate: _selectedDate,
+      ),
+    );
+  }
+
+  void _showEditActivityDialog(int index) {
+    showDialog(
+      context: context,
+      builder: (context) => _EditActivityDialog(
+        activity: _activities[index],
+        onUpdate: (activity) => _updateActivity(index, activity),
+        onDelete: () {
+          Navigator.pop(context);
+          _deleteActivity(index);
+        },
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isToday = _dateKey(_selectedDate) == _dateKey(DateTime.now());
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Today\'s Plan'),
+        title: Text(isToday ? 'Today\'s Plan' : 'Plan for ${DateFormat('MMM dd').format(_selectedDate)}'),
+        elevation: 0,
         actions: [
-          IconButton(
-            onPressed: () async {
-              setState(() => _isLoading = true);
-              await _generatePlan();
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Plan regenerated! ✨'),
-                  backgroundColor: AppColors.primary,
-                ),
-              );
-            },
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Regenerate Plan',
-          ),
+          if (isToday)
+            IconButton(
+              onPressed: () async {
+                setState(() => _isLoading = true);
+                await _generatePlan();
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Plan regenerated! ✨'),
+                    backgroundColor: AppColors.primary,
+                  ),
+                );
+              },
+              icon: const Icon(Icons.refresh_rounded),
+              tooltip: 'Regenerate Plan',
+            ),
         ],
       ),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : Column(
-                children: [
-                  // ─── Adherence Card ──────────────────────────
-                  _buildAdherenceCard(isDark),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+            children: [
+              // ─── Day Picker ──────────────────────────────
+              _buildDayPicker(isDark),
 
-                  // ─── Timeline ────────────────────────────────
-                  Expanded(
-                    child: ListView.builder(
+              // ─── Adherence Card ──────────────────────────
+              _buildAdherenceCard(isDark),
+
+              // ─── Timeline ────────────────────────────────
+              Expanded(
+                child: _activities.isEmpty
+                    ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.calendar_today_rounded,
+                            size: 64,
+                            color: AppColors.textTertiary.withValues(alpha: 0.5),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No activities planned for this day',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: AppColors.textTertiary,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          ElevatedButton.icon(
+                            onPressed: _showAddActivityDialog,
+                            icon: const Icon(Icons.add_rounded),
+                            label: const Text('Add Activity'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                    : ListView.builder(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
                       itemCount: _activities.length,
                       itemBuilder: (context, index) {
@@ -280,14 +392,97 @@ class _DailyPlanScreenState extends State<DailyPlanScreen> {
                           onComplete:
                               () => _updateStatus(index, _Status.completed),
                           onSkip: () => _updateStatus(index, _Status.skipped),
+                          onEdit: () => _showEditActivityDialog(index),
                           index: index,
                         );
                       },
                     ),
-                  ),
-                ],
               ),
+            ],
+          ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showAddActivityDialog,
+        backgroundColor: AppColors.primary,
+        child: const Icon(Icons.add_rounded),
+      ),
     );
+  }
+
+  Widget _buildDayPicker(bool isDark) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: List.generate(
+          14,
+          (i) {
+            final date = DateTime.now().add(Duration(days: i - (DateTime.now().weekday - 1)));
+            final isSelected = _dateKey(date) == _dateKey(_selectedDate);
+            final isToday = _dateKey(date) == _dateKey(DateTime.now());
+
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              child: GestureDetector(
+                onTap: () => _selectDate(date),
+                child: Container(
+                  width: 60,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.primary
+                        : (isDark
+                            ? AppColors.darkCardBackground
+                            : AppColors.cardBackground),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.primary.withValues(alpha: 0)
+                          : (isDark
+                              ? AppColors.darkBorder.withValues(alpha: 0.3)
+                              : AppColors.divider.withValues(alpha: 0.2)),
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        DateFormat('E').format(date),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected
+                              ? Colors.white
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        DateFormat('d').format(date),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: isSelected ? Colors.white : AppColors.textPrimary,
+                        ),
+                      ),
+                      if (isToday)
+                        Container(
+                          width: 4,
+                          height: 4,
+                          margin: const EdgeInsets.only(top: 4),
+                          decoration: BoxDecoration(
+                            color: isSelected ? Colors.white : AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    ).animate().fadeIn(duration: 300.ms);
   }
 
   Widget _buildAdherenceCard(bool isDark) {
@@ -373,6 +568,7 @@ class _ActivityTimelineCard extends StatelessWidget {
   final VoidCallback onStart;
   final VoidCallback onComplete;
   final VoidCallback onSkip;
+  final VoidCallback onEdit;
   final int index;
 
   const _ActivityTimelineCard({
@@ -382,6 +578,7 @@ class _ActivityTimelineCard extends StatelessWidget {
     required this.onStart,
     required this.onComplete,
     required this.onSkip,
+    required this.onEdit,
     required this.index,
   });
 
@@ -533,6 +730,27 @@ class _ActivityTimelineCard extends StatelessWidget {
                           icon: Icons.skip_next_rounded,
                           color: AppColors.textTertiary,
                           onTap: onSkip,
+                          outlined: true,
+                        ),
+                        const SizedBox(width: 8),
+                        _ActionButton(
+                          label: 'Edit',
+                          icon: Icons.edit_rounded,
+                          color: AppColors.secondary,
+                          onTap: onEdit,
+                          outlined: true,
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        _ActionButton(
+                          label: 'Edit',
+                          icon: Icons.edit_rounded,
+                          color: AppColors.secondary,
+                          onTap: onEdit,
                           outlined: true,
                         ),
                       ],
@@ -733,5 +951,506 @@ class _PlanActivity {
 
     // If we can't find a constant match, we MUST return a constant default to support tree-shaking
     return Icons.extension_rounded;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ADD ACTIVITY DIALOG
+// ═══════════════════════════════════════════════════════════════
+
+class _AddActivityDialog extends StatefulWidget {
+  final Function(_PlanActivity) onAdd;
+  final DateTime selectedDate;
+
+  const _AddActivityDialog({
+    required this.onAdd,
+    required this.selectedDate,
+  });
+
+  @override
+  State<_AddActivityDialog> createState() => _AddActivityDialogState();
+}
+
+class _AddActivityDialogState extends State<_AddActivityDialog> {
+  late TextEditingController _titleController;
+  late TextEditingController _timeController;
+  int _duration = 15;
+  late IconData _selectedIcon;
+  late Color _selectedColor;
+
+  final List<(IconData, String)> _availableIcons = [
+    (Icons.chat_bubble_rounded, 'Communication'),
+    (Icons.sensors_rounded, 'Sensory'),
+    (Icons.psychology_rounded, 'Focus'),
+    (Icons.accessibility_new_rounded, 'Motor'),
+    (Icons.self_improvement_rounded, 'Rest'),
+    (Icons.extension_rounded, 'Activity'),
+    (Icons.emoji_emotions_rounded, 'Emotion'),
+    (Icons.spa_rounded, 'Calm'),
+  ];
+
+  final List<(Color, String)> _availableColors = [
+    (AppColors.primary, 'Blue'),
+    (AppColors.secondary, 'Purple'),
+    (AppColors.accent, 'Orange'),
+    (const Color(0xFF10B981), 'Green'),
+    (const Color(0xFFEC4899), 'Pink'),
+    (AppColors.success, 'Green'),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController();
+    final now = DateTime.now();
+    _timeController = TextEditingController(
+      text: '${(now.hour + 1).toString().padLeft(2, '0')}:00 ${now.hour >= 11 ? 'PM' : 'AM'}',
+    );
+    _selectedIcon = Icons.star_rounded;
+    _selectedColor = AppColors.primary;
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _timeController.dispose();
+    super.dispose();
+  }
+
+  void _saveActivity() {
+    if (_titleController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter activity title')),
+      );
+      return;
+    }
+
+    final activity = _PlanActivity(
+      title: _titleController.text,
+      time: _timeController.text,
+      duration: _duration,
+      icon: _selectedIcon,
+      color: _selectedColor,
+    );
+
+    Navigator.pop(context);
+    widget.onAdd(activity);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return AlertDialog(
+      title: const Text('Add New Activity'),
+      contentPadding: const EdgeInsets.all(16),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Title
+            Text(
+              'Activity Title',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _titleController,
+              decoration: InputDecoration(
+                hintText: 'e.g., Ball Play, Reading Time',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+              ),
+              maxLines: 1,
+            ),
+            const SizedBox(height: 16),
+
+            // Time
+            Text(
+              'Time',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _timeController,
+              decoration: InputDecoration(
+                hintText: '10:00 AM',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+              ),
+              maxLines: 1,
+            ),
+            const SizedBox(height: 16),
+
+            // Duration
+            Text(
+              'Duration: $_duration minutes',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+            Slider(
+              value: _duration.toDouble(),
+              min: 5,
+              max: 120,
+              divisions: 23,
+              onChanged: (value) => setState(() => _duration = value.toInt()),
+              label: '$_duration min',
+            ),
+            const SizedBox(height: 16),
+
+            // Icon
+            Text(
+              'Icon',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: _availableIcons.map((entry) {
+                final (icon, label) = entry;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedIcon = icon),
+                  child: Tooltip(
+                    message: label,
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: _selectedIcon == icon
+                            ? AppColors.primary.withValues(alpha: 0.2)
+                            : (isDark
+                                ? AppColors.darkCardBackground
+                                : AppColors.surfaceVariant),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: _selectedIcon == icon
+                              ? AppColors.primary
+                              : Colors.transparent,
+                          width: 2,
+                        ),
+                      ),
+                      child: Icon(icon, color: AppColors.primary),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+
+            // Color
+            Text(
+              'Color',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: _availableColors.map((entry) {
+                final (color, label) = entry;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedColor = color),
+                  child: Tooltip(
+                    message: label,
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _selectedColor == color
+                              ? Colors.white
+                              : Colors.transparent,
+                          width: 3,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _saveActivity,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Add Activity'),
+        ),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EDIT ACTIVITY DIALOG
+// ═══════════════════════════════════════════════════════════════
+
+class _EditActivityDialog extends StatefulWidget {
+  final _PlanActivity activity;
+  final Function(_PlanActivity) onUpdate;
+  final VoidCallback onDelete;
+
+  const _EditActivityDialog({
+    required this.activity,
+    required this.onUpdate,
+    required this.onDelete,
+  });
+
+  @override
+  State<_EditActivityDialog> createState() => _EditActivityDialogState();
+}
+
+class _EditActivityDialogState extends State<_EditActivityDialog> {
+  late TextEditingController _titleController;
+  late TextEditingController _timeController;
+  late int _duration;
+  late IconData _selectedIcon;
+  late Color _selectedColor;
+
+  final List<(IconData, String)> _availableIcons = [
+    (Icons.chat_bubble_rounded, 'Communication'),
+    (Icons.sensors_rounded, 'Sensory'),
+    (Icons.psychology_rounded, 'Focus'),
+    (Icons.accessibility_new_rounded, 'Motor'),
+    (Icons.self_improvement_rounded, 'Rest'),
+    (Icons.extension_rounded, 'Activity'),
+    (Icons.emoji_emotions_rounded, 'Emotion'),
+    (Icons.spa_rounded, 'Calm'),
+  ];
+
+  final List<(Color, String)> _availableColors = [
+    (AppColors.primary, 'Blue'),
+    (AppColors.secondary, 'Purple'),
+    (AppColors.accent, 'Orange'),
+    (const Color(0xFF10B981), 'Green'),
+    (const Color(0xFFEC4899), 'Pink'),
+    (AppColors.success, 'Green'),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.activity.title);
+    _timeController = TextEditingController(text: widget.activity.time);
+    _duration = widget.activity.duration;
+    _selectedIcon = widget.activity.icon;
+    _selectedColor = widget.activity.color;
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _timeController.dispose();
+    super.dispose();
+  }
+
+  void _updateActivity() {
+    if (_titleController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter activity title')),
+      );
+      return;
+    }
+
+    final activity = _PlanActivity(
+      title: _titleController.text,
+      time: _timeController.text,
+      duration: _duration,
+      icon: _selectedIcon,
+      color: _selectedColor,
+      status: widget.activity.status,
+    );
+
+    Navigator.pop(context);
+    widget.onUpdate(activity);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return AlertDialog(
+      title: const Text('Edit Activity'),
+      contentPadding: const EdgeInsets.all(16),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Title
+            Text(
+              'Activity Title',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _titleController,
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+              ),
+              maxLines: 1,
+            ),
+            const SizedBox(height: 16),
+
+            // Time
+            Text(
+              'Time',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+            const SizedBox(height: 6),
+            TextField(
+              controller: _timeController,
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+              ),
+              maxLines: 1,
+            ),
+            const SizedBox(height: 16),
+
+            // Duration
+            Text(
+              'Duration: $_duration minutes',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+            Slider(
+              value: _duration.toDouble(),
+              min: 5,
+              max: 120,
+              divisions: 23,
+              onChanged: (value) => setState(() => _duration = value.toInt()),
+              label: '$_duration min',
+            ),
+            const SizedBox(height: 16),
+
+            // Icon
+            Text(
+              'Icon',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: _availableIcons.map((entry) {
+                final (icon, label) = entry;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedIcon = icon),
+                  child: Tooltip(
+                    message: label,
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: _selectedIcon == icon
+                            ? AppColors.primary.withValues(alpha: 0.2)
+                            : (isDark
+                                ? AppColors.darkCardBackground
+                                : AppColors.surfaceVariant),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: _selectedIcon == icon
+                              ? AppColors.primary
+                              : Colors.transparent,
+                          width: 2,
+                        ),
+                      ),
+                      child: Icon(icon, color: AppColors.primary),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+
+            // Color
+            Text(
+              'Color',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: _availableColors.map((entry) {
+                final (color, label) = entry;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedColor = color),
+                  child: Tooltip(
+                    message: label,
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _selectedColor == color
+                              ? Colors.white
+                              : Colors.transparent,
+                          width: 3,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+            widget.onDelete();
+          },
+          child: const Text(
+            'Delete',
+            style: TextStyle(color: Colors.red),
+          ),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _updateActivity,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Update'),
+        ),
+      ],
+    );
   }
 }
