@@ -22,6 +22,7 @@ import '../../../models/guidance_note_model.dart';
 import '../../../services/ai_service.dart';
 import '../../../services/notification_service.dart';
 import '../../../services/permission_service.dart';
+import '../../../models/therapy_module_model.dart';
 
 /// Premium Smart Dashboard — central hub of the CARE-AI user app.
 /// Shows greeting, child summary, quick actions, today's plan,
@@ -716,7 +717,12 @@ class _DashboardTab extends StatelessWidget {
                 ),
               ),
               IconButton(
-                onPressed: () => Navigator.pushNamed(context, '/profile-setup'),
+                onPressed:
+                    () => Navigator.pushNamed(
+                      context,
+                      '/profile-setup',
+                      arguments: childProfile,
+                    ),
                 icon: const Icon(Icons.edit_rounded, size: 20),
                 style: IconButton.styleFrom(
                   backgroundColor:
@@ -1195,7 +1201,9 @@ class _DashboardTab extends StatelessWidget {
       color = const Color(0xFF10B981);
     }
 
-    return Padding(
+        return GestureDetector(
+          onTap: () => _openRecommendation(context, item),
+          child: Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: Container(
             padding: const EdgeInsets.all(16),
@@ -1271,17 +1279,99 @@ class _DashboardTab extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Icon(
-                  Icons.chevron_right_rounded,
-                  size: 20,
-                  color: isDark ? Colors.white38 : Colors.black26,
+                  Icons.play_circle_rounded,
+                  size: 28,
+                  color: color,
                 ),
               ],
             ),
           ),
-        )
+        ))
         .animate()
         .fadeIn(duration: 300.ms)
         .slideY(begin: 0.1, duration: 300.ms, curve: Curves.easeOut);
+  }
+
+  Future<void> _openRecommendation(
+    BuildContext context,
+    RecommendationModel recommendation,
+  ) async {
+    final matchedModule = _findModuleForRecommendation(recommendation);
+    final moduleToOpen = matchedModule ?? _bestFallbackModule();
+
+    if (moduleToOpen == null) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No module available right now. Please try again.'),
+        ),
+      );
+      return;
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (_) => TherapyActivityScreen(
+              module: moduleToOpen,
+              childProfile: childProfile,
+            ),
+      ),
+    );
+  }
+
+  TherapyModuleModel? _bestFallbackModule() {
+    final ranked = _rankedFallbackModules(limit: 1);
+    return ranked.isNotEmpty ? ranked.first : null;
+  }
+
+  TherapyModuleModel? _findModuleForRecommendation(RecommendationModel item) {
+    final title = item.title.trim().toLowerCase();
+    final objective = item.objective.trim().toLowerCase();
+    final reason = item.reason.trim().toLowerCase();
+
+    if (title.isEmpty && objective.isEmpty && reason.isEmpty) return null;
+
+    final exact = TherapyModulesRegistry.allModules
+        .where((m) => m.title.trim().toLowerCase() == title)
+        .toList();
+    if (exact.isNotEmpty) return exact.first;
+
+    final contains = TherapyModulesRegistry.allModules.where((m) {
+      final moduleTitle = m.title.toLowerCase();
+      return moduleTitle.contains(title) || title.contains(moduleTitle);
+    }).toList();
+    if (contains.isNotEmpty) return contains.first;
+
+    // Fuzzy fallback: choose the module with highest token overlap
+    final queryTokens = <String>{
+      ...title.split(RegExp(r'[^a-z0-9]+')),
+      ...objective.split(RegExp(r'[^a-z0-9]+')),
+      ...reason.split(RegExp(r'[^a-z0-9]+')),
+    }.where((t) => t.length > 2).toSet();
+
+    if (queryTokens.isEmpty) return null;
+
+    TherapyModuleModel? best;
+    var bestScore = 0;
+    for (final module in TherapyModulesRegistry.allModules) {
+      final moduleText =
+          '${module.title} ${module.objective} ${module.skillCategory}'.toLowerCase();
+      final moduleTokens = moduleText
+          .split(RegExp(r'[^a-z0-9]+'))
+          .where((t) => t.length > 2)
+          .toSet();
+      final overlap = queryTokens.intersection(moduleTokens).length;
+      if (overlap > bestScore) {
+        bestScore = overlap;
+        best = module;
+      }
+    }
+
+    if (best != null && bestScore > 0) return best;
+
+    return null;
   }
 
   Widget _buildShimmerRecommendation(bool isDark) {
@@ -1302,75 +1392,26 @@ class _DashboardTab extends StatelessWidget {
   }
 
   List<Widget> _buildSampleRecommendations(BuildContext context, bool isDark) {
-    final items = <_RecommendationItem>[];
-    final conditions = childProfile?.conditions ?? [];
+    final modules = _rankedFallbackModules(limit: 5);
+    if (modules.isEmpty) return <Widget>[];
 
-    // Always show communication
-    items.add(
-      const _RecommendationItem(
-        title: 'Communication Practice',
-        subtitle: '10 min • Picture card activity',
-        icon: Icons.chat_bubble_rounded,
-        color: AppColors.primary,
-      ),
-    );
-
-    // Condition-based recommendations
-    if (conditions.any(
-      (c) =>
-          c.toLowerCase().contains('asd') ||
-          c.toLowerCase().contains('autism') ||
-          c.toLowerCase().contains('sensory'),
-    )) {
-      items.add(
-        const _RecommendationItem(
-          title: 'Sensory Play Time',
-          subtitle: '15 min • Texture exploration',
-          icon: Icons.touch_app_rounded,
-          color: AppColors.accent,
-        ),
-      );
-    }
-
-    if (conditions.any(
-      (c) =>
-          c.toLowerCase().contains('adhd') ||
-          c.toLowerCase().contains('attention'),
-    )) {
-      items.add(
-        const _RecommendationItem(
-          title: 'Focus Training',
-          subtitle: '10 min • Attention exercise',
-          icon: Icons.psychology_rounded,
-          color: AppColors.purple,
-        ),
-      );
-    }
-
-    // Always show motor skills
-    items.add(
-      const _RecommendationItem(
-        title: 'Motor Skills Exercise',
-        subtitle: '10 min • Stacking blocks',
-        icon: Icons.sports_handball_rounded,
-        color: AppColors.secondary,
-      ),
-    );
-
-    // Wellness recommendation
-    items.add(
-      const _RecommendationItem(
-        title: 'Breathing Exercise',
-        subtitle: '5 min • Calming activity',
-        icon: Icons.spa_rounded,
-        color: Color(0xFF10B981),
-      ),
-    );
-
-    return items.asMap().entries.map((entry) {
+    return modules.asMap().entries.map((entry) {
       final index = entry.key;
-      final item = entry.value;
-      return Padding(
+      final module = entry.value;
+      final color = _getCategoryColor(module.skillCategory);
+      return GestureDetector(
+        onTap:
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder:
+                    (_) => TherapyActivityScreen(
+                      module: module,
+                      childProfile: childProfile,
+                    ),
+              ),
+            ),
+        child: Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: Container(
           padding: const EdgeInsets.all(16),
@@ -1394,10 +1435,14 @@ class _DashboardTab extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: item.color.withValues(alpha: 0.12),
+                  color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(item.icon, color: item.color, size: 22),
+                child: Icon(
+                  _getCategoryIcon(module.skillCategory),
+                  color: color,
+                  size: 22,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -1405,28 +1450,112 @@ class _DashboardTab extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      item.title,
+                      module.title,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      item.subtitle,
+                      '${module.durationMinutes} min • ${_buildFallbackReason(module)}',
                       style: Theme.of(context).textTheme.bodySmall,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              Icon(Icons.play_circle_rounded, color: item.color, size: 32),
+              Icon(Icons.play_circle_rounded, color: color, size: 32),
             ],
           ),
         ),
-      ).animate().fadeIn(
+      )).animate().fadeIn(
         delay: Duration(milliseconds: 800 + (index * 100)),
         duration: 400.ms,
       );
     }).toList();
+  }
+
+  List<TherapyModuleModel> _rankedFallbackModules({int limit = 5}) {
+    final profile = childProfile;
+    final all = TherapyModulesRegistry.allModules;
+    if (profile == null) return all.take(limit).toList();
+
+    final completed = profile.completedModuleIds.toSet();
+    final weakestSkills = skillProgress.entries.toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
+    final weakest = weakestSkills.take(2).map((e) => e.key.toLowerCase()).toSet();
+
+    int score(TherapyModuleModel module) {
+      var value = 0;
+      final moduleConditions = module.conditionTypes
+          .map((e) => e.toLowerCase())
+          .toList();
+      final profileConditions = profile.conditions.map((e) => e.toLowerCase()).toList();
+
+      for (final condition in profileConditions) {
+        final matched = moduleConditions.any(
+          (m) => m.contains(condition) || condition.contains(m),
+        );
+        if (matched) value += 4;
+      }
+
+      if (_isAgeInRange(profile.age, module.ageRange)) value += 2;
+
+      final categoryLower = module.skillCategory.toLowerCase();
+      if (weakest.any((skill) => categoryLower.contains(skill))) {
+        value += 2;
+      }
+
+      if (completed.contains(module.id)) value -= 5;
+      return value;
+    }
+
+    final ranked = [...all]
+      ..sort((a, b) {
+        final scoreCompare = score(b).compareTo(score(a));
+        if (scoreCompare != 0) return scoreCompare;
+        return a.durationMinutes.compareTo(b.durationMinutes);
+      });
+
+    return ranked.where((m) => !completed.contains(m.id)).take(limit).toList();
+  }
+
+  bool _isAgeInRange(int age, String range) {
+    final parts = range.split('-');
+    if (parts.length != 2) return true;
+    final min = int.tryParse(parts[0].trim());
+    final max = int.tryParse(parts[1].trim());
+    if (min == null || max == null) return true;
+    return age >= min && age <= max;
+  }
+
+  String _buildFallbackReason(TherapyModuleModel module) {
+    final profile = childProfile;
+    if (profile == null) {
+      return module.objective;
+    }
+
+    final moduleConditions = module.conditionTypes.map((e) => e.toLowerCase());
+    final matchingCondition = profile.conditions.firstWhere(
+      (c) {
+        final condition = c.toLowerCase();
+        return moduleConditions.any(
+          (m) => m.contains(condition) || condition.contains(m),
+        );
+      },
+      orElse: () => '',
+    );
+
+    if (matchingCondition.isNotEmpty) {
+      return 'Recommended for ${matchingCondition.toLowerCase()} support';
+    }
+
+    if (_isAgeInRange(profile.age, module.ageRange)) {
+      return 'Well-suited for age ${profile.age}';
+    }
+
+    return module.objective;
   }
 
   Widget _buildLoadingCard(bool isDark) {
@@ -1643,19 +1772,5 @@ class _QuickAction {
     required this.icon,
     required this.gradient,
     required this.onTap,
-  });
-}
-
-class _RecommendationItem {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Color color;
-
-  const _RecommendationItem({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.color,
   });
 }

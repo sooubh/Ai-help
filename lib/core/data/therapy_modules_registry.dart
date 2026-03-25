@@ -6,7 +6,10 @@ import '../../../models/therapy_module_model.dart';
 class TherapyModulesRegistry {
   TherapyModulesRegistry._();
 
-  static final List<TherapyModuleModel> allModules = [
+  static final List<TherapyModuleModel> allModules =
+      _baseModules.map(_withReferenceMedia).toList();
+
+  static final List<TherapyModuleModel> _baseModules = [
     // ── COMMUNICATION SKILLS (5) ──────────────────────────────
     TherapyModuleModel(
       id: 'comm_01',
@@ -761,6 +764,70 @@ class TherapyModulesRegistry {
       iconName: 'self_improvement',
     ),
   ];
+
+  static TherapyModuleModel _withReferenceMedia(TherapyModuleModel module) {
+    if (module.mediaUrls.isNotEmpty) return module;
+
+    return TherapyModuleModel(
+      id: module.id,
+      title: module.title,
+      objective: module.objective,
+      conditionTypes: module.conditionTypes,
+      ageRange: module.ageRange,
+      skillCategory: module.skillCategory,
+      difficultyLevel: module.difficultyLevel,
+      materials: module.materials,
+      instructions: module.instructions,
+      durationMinutes: module.durationMinutes,
+      safetyNotes: module.safetyNotes,
+      expectedOutcomes: module.expectedOutcomes,
+      createdBy: module.createdBy,
+      isExpertApproved: module.isExpertApproved,
+      mediaUrls: _referenceUrlsFor(module),
+      iconName: module.iconName,
+      activityType: module.activityType,
+      targetSkills: module.targetSkills,
+      prerequisites: module.prerequisites,
+      adaptiveDifficultyEnabled: module.adaptiveDifficultyEnabled,
+      createdAt: module.createdAt,
+    );
+  }
+
+  static List<String> _referenceUrlsFor(TherapyModuleModel module) {
+    final categoryTag = _categoryReferenceTag(module.skillCategory);
+    final encoded = Uri.encodeComponent(categoryTag);
+    return [
+      'https://picsum.photos/seed/${module.id}_1/960/640',
+      'https://picsum.photos/seed/${module.id}_2/960/640',
+      'https://source.unsplash.com/960x640/?$encoded,child,therapy',
+    ];
+  }
+
+  static String _categoryReferenceTag(String category) {
+    switch (category.toLowerCase()) {
+      case 'communication':
+        return 'speech therapy';
+      case 'emotional recognition':
+        return 'child emotions learning';
+      case 'cognitive':
+        return 'kids puzzle learning';
+      case 'memory':
+        return 'memory cards activity';
+      case 'attention':
+        return 'focus training children';
+      case 'motor skills':
+        return 'fine motor skills child';
+      case 'social skills':
+      case 'social interaction':
+        return 'children social play';
+      case 'behavioral':
+        return 'positive behavior support';
+      case 'sensory':
+        return 'sensory play activity';
+      default:
+        return 'child development activity';
+    }
+  }
 
   /// Get all unique skill categories.
   static List<String> get categories =>

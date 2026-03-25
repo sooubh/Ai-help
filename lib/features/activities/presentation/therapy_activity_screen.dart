@@ -30,6 +30,7 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
   int _currentStep = 0;
   int _score = 0;
   int _maxScore = 0;
+  final Set<int> _completedSteps = <int>{};
   bool _isCompleted = false;
   bool _showingFeedback = false;
   Map<String, dynamic>? _aiFeedback;
@@ -58,7 +59,8 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
   }
 
   void _completeStep({bool correct = true}) {
-    if (correct) _score += 10;
+    final isFirstCompletion = _completedSteps.add(_currentStep);
+    if (correct && isFirstCompletion) _score += 10;
     if (_currentStep < _totalSteps - 1) {
       setState(() => _currentStep++);
     } else {
@@ -262,7 +264,7 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
               ),
               const Spacer(),
               Text(
-                widget.module.difficultyLabel,
+                '${_completedSteps.length}/$_totalSteps done',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: _difficultyColor,
                   fontWeight: FontWeight.w600,
@@ -272,7 +274,7 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
           ),
         ),
 
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
 
         // Current instruction
         Expanded(
@@ -298,6 +300,8 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  _buildCurrentStepReference(theme, isDark),
+                  const SizedBox(height: 16),
                   Icon(
                     Icons.lightbulb_outline_rounded,
                     color: AppColors.primary,
@@ -377,7 +381,7 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
                   label: Text(
                     _currentStep == _totalSteps - 1
                         ? 'Complete!'
-                        : 'Done — Next Step',
+                        : 'Mark Step Done',
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
@@ -390,6 +394,392 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
                 ),
               ),
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCurrentStepReference(ThemeData theme, bool isDark) {
+    final media = widget.module.mediaUrls;
+    final String? src = media.isEmpty ? null : media[_currentStep % media.length];
+
+    final Widget image =
+        src == null
+            ? Container(
+              color: AppColors.primary.withValues(alpha: isDark ? 0.16 : 0.08),
+              alignment: Alignment.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.image_outlined, color: AppColors.primary, size: 34),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Reference for Step ${_currentStep + 1}',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            )
+            : (src.startsWith('http://') || src.startsWith('https://')
+                ? Image.network(
+                  src,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const Center(
+                    child: Icon(Icons.broken_image_rounded),
+                  ),
+                )
+                : Image.asset(
+                  src,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const Center(
+                    child: Icon(Icons.broken_image_rounded),
+                  ),
+                ));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Step Reference',
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: AppColors.primary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: SizedBox(height: 170, width: double.infinity, child: image),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStepMap(ThemeData theme, bool isDark) {
+    return SizedBox(
+      height: 62,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        scrollDirection: Axis.horizontal,
+        itemCount: _totalSteps,
+        separatorBuilder:
+            (_, __) => Container(
+              width: 24,
+              height: 2,
+              margin: const EdgeInsets.only(top: 18),
+              color: isDark ? Colors.white24 : Colors.grey.shade300,
+            ),
+        itemBuilder: (context, index) {
+          final isCurrent = index == _currentStep;
+          final isDone = _completedSteps.contains(index);
+          final circleColor =
+              isDone
+                  ? const Color(0xFF10B981)
+                  : isCurrent
+                  ? AppColors.primary
+                  : (isDark ? Colors.white24 : Colors.grey.shade300);
+
+          return GestureDetector(
+            onTap: () => setState(() => _currentStep = index),
+            child: Column(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: circleColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isDone ? Icons.check_rounded : Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${index + 1}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: isCurrent ? AppColors.primary : null,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildReferenceDiagram(ThemeData theme, bool isDark) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: isDark ? 0.12 : 0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.account_tree_rounded,
+                color: AppColors.primary,
+                size: 18,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Reference Flow Diagram',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...List.generate(_totalSteps, (index) {
+            final isLast = index == _totalSteps - 1;
+            final isCurrent = index == _currentStep;
+            final stepText = _instructions[index];
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Column(
+                  children: [
+                    Container(
+                      width: 22,
+                      height: 22,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color:
+                            isCurrent
+                                ? AppColors.primary
+                                : AppColors.primary.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '${index + 1}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    if (!isLast)
+                      Container(
+                        width: 2,
+                        height: 20,
+                        color: AppColors.primary.withValues(alpha: 0.3),
+                      ),
+                  ],
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 2, bottom: 8),
+                    child: Text(
+                      stepText,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReferenceImages(ThemeData theme, bool isDark) {
+    final media = widget.module.mediaUrls;
+    if (media.isEmpty) {
+      final visuals = [
+        (
+          Icons.chair_rounded,
+          'Set Up Space',
+          'Prepare materials in a calm, distraction-free area.',
+        ),
+        (
+          Icons.record_voice_over_rounded,
+          'Model First',
+          'Demonstrate one example before asking the child to try.',
+        ),
+        (
+          Icons.favorite_rounded,
+          'Positive Reinforcement',
+          'Use praise and rewards immediately after each success.',
+        ),
+      ];
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.image_outlined, color: AppColors.primary, size: 18),
+              const SizedBox(width: 6),
+              Text(
+                'Visual Guide',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 132,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: visuals.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                final item = visuals[index];
+                return Container(
+                  width: 190,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.primary.withValues(alpha: isDark ? 0.22 : 0.13),
+                        AppColors.accent.withValues(alpha: isDark ? 0.16 : 0.08),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(item.$1, color: Colors.white, size: 24),
+                      const SizedBox(height: 8),
+                      Text(
+                        item.$2,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        item.$3,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.92),
+                          fontSize: 11,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.image_rounded, color: AppColors.primary, size: 18),
+            const SizedBox(width: 6),
+            Text(
+              'Reference Images',
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 142,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: media.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (context, index) {
+              final src = media[index];
+              final isNetwork = src.startsWith('http://') || src.startsWith('https://');
+              final image = isNetwork
+                  ? Image.network(
+                    src,
+                    fit: BoxFit.cover,
+                    errorBuilder:
+                        (_, __, ___) => Container(
+                          color: Colors.black12,
+                          alignment: Alignment.center,
+                          child: const Icon(Icons.broken_image_rounded),
+                        ),
+                  )
+                  : Image.asset(
+                    src,
+                    fit: BoxFit.cover,
+                    errorBuilder:
+                        (_, __, ___) => Container(
+                          color: Colors.black12,
+                          alignment: Alignment.center,
+                          child: const Icon(Icons.broken_image_rounded),
+                        ),
+                  );
+
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  width: 180,
+                  child: Stack(
+                    children: [
+                      Positioned.fill(child: image),
+                      Positioned(
+                        left: 8,
+                        right: 8,
+                        bottom: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            'Reference ${index + 1}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
         ),
       ],
@@ -533,6 +923,7 @@ class _TherapyActivityScreenState extends State<TherapyActivityScreen> {
                     setState(() {
                       _currentStep = 0;
                       _score = 0;
+                      _completedSteps.clear();
                       _isCompleted = false;
                       _showingFeedback = false;
                       _aiFeedback = null;
