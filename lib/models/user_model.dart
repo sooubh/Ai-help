@@ -35,8 +35,7 @@ class UserModel {
       role: map['role'] ?? 'parent',
       photoUrl: map['photoUrl'],
       fcmToken: map['fcmToken'],
-      createdAt:
-          (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       lastLoginAt: (map['lastLoginAt'] as Timestamp?)?.toDate(),
     );
   }

@@ -120,9 +120,7 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: _codeSent
-              ? _buildOtpView(isDark)
-              : _buildPhoneView(isDark),
+          child: _codeSent ? _buildOtpView(isDark) : _buildPhoneView(isDark),
         ),
       ),
     );
@@ -135,17 +133,23 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
         const SizedBox(height: 20),
 
         Container(
-          width: 72,
-          height: 72,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF5B6EF5), Color(0xFF2DD4A8)],
-            ),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: const Icon(Icons.phone_android_rounded,
-              color: Colors.white, size: 36),
-        ).animate().fadeIn(duration: 400.ms).scale(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF5B6EF5), Color(0xFF2DD4A8)],
+                ),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Icon(
+                Icons.phone_android_rounded,
+                color: Colors.white,
+                size: 36,
+              ),
+            )
+            .animate()
+            .fadeIn(duration: 400.ms)
+            .scale(
               begin: const Offset(0.8, 0.8),
               duration: 400.ms,
               curve: Curves.easeOutBack,
@@ -155,9 +159,9 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
 
         Text(
           'Phone Verification',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
         ).animate().fadeIn(delay: 100.ms, duration: 400.ms),
 
         const SizedBox(height: 8),
@@ -165,11 +169,10 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
         Text(
           'We\'ll send you a one-time verification code to your phone number.',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: isDark
-                    ? AppColors.darkTextSecondary
-                    : AppColors.textSecondary,
-                height: 1.5,
-              ),
+            color:
+                isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+            height: 1.5,
+          ),
         ).animate().fadeIn(delay: 200.ms, duration: 400.ms),
 
         const SizedBox(height: 32),
@@ -196,22 +199,23 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
           height: 56,
           child: ElevatedButton(
             onPressed: _isLoading ? null : _sendOTP,
-            child: _isLoading
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: Colors.white,
+            child:
+                _isLoading
+                    ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                      ),
+                    )
+                    : const Text(
+                      'Send Verification Code',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  )
-                : const Text(
-                    'Send Verification Code',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
           ),
         ).animate().fadeIn(delay: 400.ms, duration: 400.ms),
       ],
@@ -231,17 +235,20 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
             color: AppColors.accentSurface,
             borderRadius: BorderRadius.circular(20),
           ),
-          child: const Icon(Icons.sms_rounded,
-              color: AppColors.accent, size: 36),
+          child: const Icon(
+            Icons.sms_rounded,
+            color: AppColors.accent,
+            size: 36,
+          ),
         ).animate().fadeIn(duration: 400.ms),
 
         const SizedBox(height: 24),
 
         Text(
           'Enter Verification Code',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
         ).animate().fadeIn(delay: 100.ms),
 
@@ -250,10 +257,9 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
         Text(
           'Code sent to ${_phoneController.text.trim()}',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: isDark
-                    ? AppColors.darkTextSecondary
-                    : AppColors.textSecondary,
-              ),
+            color:
+                isDark ? AppColors.darkTextSecondary : AppColors.textSecondary,
+          ),
           textAlign: TextAlign.center,
         ).animate().fadeIn(delay: 200.ms),
 
@@ -280,9 +286,7 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                 ),
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                ],
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: const InputDecoration(
                   counterText: '',
                   contentPadding: EdgeInsets.symmetric(vertical: 14),
@@ -296,8 +300,7 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
                   }
                   // Auto-verify when all fields filled
                   if (index == 5 && value.isNotEmpty) {
-                    final code =
-                        _otpControllers.map((c) => c.text).join();
+                    final code = _otpControllers.map((c) => c.text).join();
                     if (code.length == 6) {
                       _verifyOTP();
                     }
@@ -315,25 +318,24 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
           height: 56,
           child: ElevatedButton(
             onPressed: _isLoading ? null : _verifyOTP,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accent,
-            ),
-            child: _isLoading
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: Colors.white,
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
+            child:
+                _isLoading
+                    ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                      ),
+                    )
+                    : const Text(
+                      'Verify & Continue',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  )
-                : const Text(
-                    'Verify & Continue',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
           ),
         ).animate().fadeIn(delay: 400.ms),
 

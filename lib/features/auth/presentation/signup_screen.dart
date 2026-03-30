@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/utils/validators.dart';
 import '../../../services/firebase_service.dart';
+import '../../../services/cache/sync_manager.dart';
 import '../../../widgets/custom_text_field.dart';
 
 /// Signup screen matching the premium login design.
@@ -47,6 +49,15 @@ class _SignupScreenState extends State<SignupScreen> {
         role: _isDoctor ? 'doctor' : 'parent',
       );
       if (!mounted) return;
+
+      // Start cache sync after successful signup
+      final userId = _firebaseService.currentUser?.uid;
+      if (userId != null && mounted) {
+        final syncManager = context.read<SyncManager>();
+        await syncManager.startSync(userId);
+      }
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(AppStrings.signUpSuccess),
@@ -80,6 +91,14 @@ class _SignupScreenState extends State<SignupScreen> {
       );
       if (!mounted) return;
       if (user != null) {
+        // Start cache sync after successful Google signup
+        final userId = _firebaseService.currentUser?.uid;
+        if (userId != null && mounted) {
+          final syncManager = context.read<SyncManager>();
+          await syncManager.startSync(userId);
+        }
+        if (!mounted) return;
+
         if (_isDoctor) {
           final docProfile = await _firebaseService.getDoctorProfile();
           if (!mounted) return;

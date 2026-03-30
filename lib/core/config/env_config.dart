@@ -11,13 +11,16 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class EnvConfig {
   EnvConfig._();
 
-  /// Gemini API key — reads from .env file, falls back to --dart-define.
   static String get geminiApiKey {
-    return dotenv.env['GEMINI_API_KEY'] ??
-        const String.fromEnvironment(
-          'GEMINI_API_KEY',
-          defaultValue: '',
-        );
+    String key = '';
+    if (dotenv.isInitialized) {
+      key = dotenv.env['GEMINI_API_KEY'] ?? '';
+    }
+
+    if (key.isEmpty) {
+      key = const String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
+    }
+    return key;
   }
 
   /// Whether we have a valid Gemini API key configured.

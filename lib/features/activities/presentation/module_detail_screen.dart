@@ -36,8 +36,9 @@ class ModuleDetailScreen extends StatelessWidget {
                   gradient: LinearGradient(
                     colors: [
                       _getCategoryColor(module.skillCategory),
-                      _getCategoryColor(module.skillCategory)
-                          .withValues(alpha: 0.7),
+                      _getCategoryColor(
+                        module.skillCategory,
+                      ).withValues(alpha: 0.7),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -88,16 +89,13 @@ class ModuleDetailScreen extends StatelessWidget {
                   const SizedBox(height: 20),
 
                   // ─── Objective ──────────────────────────
-                  _SectionHeader(
-                    title: 'Objective',
-                    icon: Icons.flag_rounded,
-                  ),
+                  _SectionHeader(title: 'Objective', icon: Icons.flag_rounded),
                   const SizedBox(height: 8),
                   Text(
                     module.objective,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          height: 1.6,
-                        ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyLarge?.copyWith(height: 1.6),
                   ).animate().fadeIn(delay: 200.ms, duration: 400.ms),
 
                   const SizedBox(height: 24),
@@ -111,24 +109,27 @@ class ModuleDetailScreen extends StatelessWidget {
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
-                    children: module.conditionTypes.map((c) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppColors.primarySurface,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text(
-                          c,
-                          style: const TextStyle(
-                            color: AppColors.primary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                    children:
+                        module.conditionTypes.map((c) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.primarySurface,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(
+                              c,
+                              style: const TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          );
+                        }).toList(),
                   ).animate().fadeIn(delay: 300.ms, duration: 400.ms),
 
                   const SizedBox(height: 24),
@@ -156,17 +157,15 @@ class ModuleDetailScreen extends StatelessWidget {
                           Expanded(
                             child: Text(
                               entry.value,
-                              style:
-                                  Theme.of(context).textTheme.bodyMedium,
+                              style: Theme.of(context).textTheme.bodyMedium,
                             ),
                           ),
                         ],
                       ),
                     ).animate().fadeIn(
-                          delay: Duration(
-                              milliseconds: 400 + (entry.key * 50)),
-                          duration: 300.ms,
-                        );
+                      delay: Duration(milliseconds: 400 + (entry.key * 50)),
+                      duration: 300.ms,
+                    );
                   }),
 
                   const SizedBox(height: 24),
@@ -187,8 +186,7 @@ class ModuleDetailScreen extends StatelessWidget {
                             width: 32,
                             height: 32,
                             decoration: BoxDecoration(
-                              color: AppColors.primary
-                                  .withValues(alpha: 0.1),
+                              color: AppColors.primary.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Center(
@@ -208,33 +206,33 @@ class ModuleDetailScreen extends StatelessWidget {
                               padding: const EdgeInsets.only(top: 6),
                               child: Text(
                                 entry.value,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.copyWith(height: 1.5),
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.bodyMedium?.copyWith(height: 1.5),
                               ),
                             ),
                           ),
                         ],
                       ),
                     ).animate().fadeIn(
-                          delay: Duration(
-                              milliseconds: 500 + (entry.key * 80)),
-                          duration: 400.ms,
-                        );
+                      delay: Duration(milliseconds: 500 + (entry.key * 80)),
+                      duration: 400.ms,
+                    );
                   }),
 
                   const SizedBox(height: 24),
 
                   // ─── Safety Notes ───────────────────────
-                  if (module.safetyNotes != null && module.safetyNotes!.isNotEmpty) ...[
+                  if (module.safetyNotes != null &&
+                      module.safetyNotes!.isNotEmpty) ...[
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: isDark
-                            ? AppColors.error.withValues(alpha: 0.1)
-                            : AppColors.emergencyLight,
+                        color:
+                            isDark
+                                ? AppColors.error.withValues(alpha: 0.1)
+                                : AppColors.emergencyLight,
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: AppColors.error.withValues(alpha: 0.2),
@@ -245,8 +243,11 @@ class ModuleDetailScreen extends StatelessWidget {
                         children: [
                           const Row(
                             children: [
-                              Icon(Icons.health_and_safety_rounded,
-                                  color: AppColors.error, size: 18),
+                              Icon(
+                                Icons.health_and_safety_rounded,
+                                color: AppColors.error,
+                                size: 18,
+                              ),
                               SizedBox(width: 8),
                               Text(
                                 'Safety Notes',
@@ -261,10 +262,9 @@ class ModuleDetailScreen extends StatelessWidget {
                           const SizedBox(height: 8),
                           Text(
                             module.safetyNotes!,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodyMedium
-                                ?.copyWith(height: 1.5),
+                            style: Theme.of(
+                              context,
+                            ).textTheme.bodyMedium?.copyWith(height: 1.5),
                           ),
                         ],
                       ),
@@ -282,8 +282,7 @@ class ModuleDetailScreen extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => ActivityTimerScreen(
-                                module: module),
+                            builder: (_) => ActivityTimerScreen(module: module),
                           ),
                         );
                       },
@@ -296,8 +295,9 @@ class ModuleDetailScreen extends StatelessWidget {
                         ),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            _getCategoryColor(module.skillCategory),
+                        backgroundColor: _getCategoryColor(
+                          module.skillCategory,
+                        ),
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
@@ -371,9 +371,9 @@ class _SectionHeader extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           title,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
       ],
     );
@@ -393,9 +393,7 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.darkSurfaceVariant
-            : AppColors.surfaceVariant,
+        color: isDark ? AppColors.darkSurfaceVariant : AppColors.surfaceVariant,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -405,9 +403,9 @@ class _InfoChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
           ),
         ],
       ),

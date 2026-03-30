@@ -9,7 +9,7 @@ class CloudFunctionsService {
     try {
       final callable = _functions.httpsCallable('chatWithAI');
       final result = await callable.call({'prompt': prompt});
-      
+
       if (result.data != null && result.data['success'] == true) {
         return result.data['response'] as String?;
       }
@@ -25,7 +25,7 @@ class CloudFunctionsService {
     try {
       final callable = _functions.httpsCallable('generateDailyPlan');
       final result = await callable.call({'childId': childId});
-      
+
       if (result.data != null && result.data['success'] == true) {
         final planList = result.data['plan'] as List<dynamic>;
         return planList.cast<Map<String, dynamic>>();

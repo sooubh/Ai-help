@@ -4,7 +4,8 @@ class AppStrings {
 
   static const String appName = 'CARE-AI';
   static const String tagline = 'Empowering Parents. Supporting Every Child.';
-  static const String taglineShort = 'Smart Guidance for Extraordinary Parenting';
+  static const String taglineShort =
+      'Smart Guidance for Extraordinary Parenting';
 
   // ─── Auth ────────────────────────────────────────────────────
   static const String login = 'Log In';
@@ -17,7 +18,8 @@ class AppStrings {
   static const String noAccount = "Don't have an account? ";
   static const String hasAccount = 'Already have an account? ';
   static const String loginSuccess = 'Welcome back! 👋';
-  static const String signUpSuccess = 'Account created! Let\'s set up your child\'s profile.';
+  static const String signUpSuccess =
+      'Account created! Let\'s set up your child\'s profile.';
   static const String continueWithGoogle = 'Continue with Google';
   static const String continueWithPhone = 'Continue with Phone';
   static const String orDivider = 'or continue with';

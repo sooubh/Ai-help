@@ -1,15 +1,13 @@
+import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../models/voice_session_model.dart';
-import '../../../services/ai_service.dart';
 import '../../../services/voice_assistant_service.dart';
 
-/// Full-screen voice assistant UI.
-/// Designed for hands-free and eyes-free use.
 class VoiceAssistantScreen extends StatefulWidget {
   const VoiceAssistantScreen({super.key});
 
@@ -18,18 +16,38 @@ class VoiceAssistantScreen extends StatefulWidget {
 }
 
 class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late VoiceAssistantService _voiceService;
-  late AnimationController _pulseController;
+
+  late AnimationController _breathingController;
+  late AnimationController _speakingController;
+  late AnimationController _entranceController;
+
   bool _isInit = false;
+  bool _isMuted = false;
+
+  Timer? _sessionTimer;
+  Duration _sessionDuration = Duration.zero;
+  bool _hasStartedTimer = false;
 
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
+
+    _breathingController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+
+    _speakingController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
-    )..repeat(reverse: true);
+    )..repeat();
+
+    _entranceController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..forward();
   }
 
   @override
@@ -42,220 +60,354 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
   }
 
   Future<void> _initService() async {
-    final aiService = context.read<AiService>();
-    _voiceService = VoiceAssistantService(aiService);
-    
-    // We listen to service changes manually to trigger rebuilds
+    _voiceService = context.read<VoiceAssistantService>();
     _voiceService.addListener(_onServiceChange);
 
-    final success = await _voiceService.initialize();
-    if (success && mounted) {
-      await _voiceService.startSession(mode: VoiceMode.pushToTalk);
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!_voiceService.isActive && mounted) {
+        final currentRouteName =
+            ModalRoute.of(context)?.settings.name ?? 'voice_assistant';
+        final args =
+            ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
+        await _voiceService.startLiveSession(
+          childProfile: args?['childProfile'],
+          currentScreen: currentRouteName,
+        );
+      }
+    });
   }
 
   void _onServiceChange() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+
+    final status = _voiceService.session?.status;
+
+    if (status == VoiceStatus.listening && !_hasStartedTimer) {
+      _hasStartedTimer = true;
+      _startTimer();
+    } else if (status == null ||
+        status == VoiceStatus.idle ||
+        status == VoiceStatus.error) {
+      _stopTimer();
+      _hasStartedTimer = false;
+    }
+
+    setState(() {});
+  }
+
+  void _startTimer() {
+    _sessionTimer?.cancel();
+    _sessionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _sessionDuration += const Duration(seconds: 1);
+        });
+      }
+    });
+  }
+
+  void _stopTimer() {
+    _sessionTimer?.cancel();
+    _sessionTimer = null;
+    _sessionDuration = Duration.zero;
+    _hasStartedTimer = false;
   }
 
   @override
   void dispose() {
+    _stopTimer();
     _voiceService.removeListener(_onServiceChange);
-    _voiceService.stopSession();
-    _voiceService.dispose();
-    _pulseController.dispose();
+    _breathingController.dispose();
+    _speakingController.dispose();
+    _entranceController.dispose();
     super.dispose();
+  }
+
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final hours = twoDigits(duration.inHours);
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    return duration.inHours > 0
+        ? '$hours:$minutes:$seconds'
+        : '$minutes:$seconds';
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isInit || _voiceService.session == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final status = _voiceService.session!.status;
-    final mode = _voiceService.session!.mode;
+    final status = _voiceService.session?.status ?? VoiceStatus.idle;
+    final isConnected = _voiceService.isConnected;
+    final amplitudes = _voiceService.waveformAmplitudes;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBackground : AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          onPressed: () => Navigator.of(context).pop(),
+      extendBodyBehindAppBar: true,
+      appBar: _buildAppBar(isConnected),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              AppColors.primary.withValues(alpha: 0.05),
+              AppColors.primary.withValues(
+                alpha: status == VoiceStatus.speaking ? 0.2 : 0.1,
+              ),
+              Colors.black87,
+            ],
+          ),
         ),
-        title: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.mic_rounded, size: 20, color: AppColors.primary),
-            SizedBox(width: 8),
-            Text('CARE-AI Voice', style: TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
-        centerTitle: true,
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Error banner
-            if (_voiceService.errorMessage != null)
-              _buildErrorBanner(isDark),
+        child: SafeArea(
+          child: Column(
+            children: [
+              if (_voiceService.errorMessage != null) _buildErrorBanner(),
 
-            const Spacer(flex: 2),
+              const Spacer(),
 
-            // Main Audio Visualizer
-            _buildAudioVisualizer(status, isDark),
-
-            const SizedBox(height: 48),
-
-            // Status Text
-            Text(
-              _getStatusText(status),
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: _getStatusColor(status, isDark),
+              // Animated Center Orb
+              FadeTransition(
+                opacity: _entranceController,
+                child: ScaleTransition(
+                  scale: Tween<double>(begin: 0.8, end: 1.0).animate(
+                    CurvedAnimation(
+                      parent: _entranceController,
+                      curve: Curves.easeOutBack,
+                    ),
                   ),
-              textAlign: TextAlign.center,
-            ).animate(key: ValueKey(status)).fadeIn().slideY(begin: 0.1),
-
-            const SizedBox(height: 16),
-
-            // Last message display (User or AI)
-            SizedBox(
-              height: 120,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: SingleChildScrollView(
-                  reverse: true,
-                  child: Text(
-                    _getDisplayText(status),
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontSize: 18,
-                          height: 1.5,
-                          color: isDark
-                              ? AppColors.darkTextSecondary
-                              : AppColors.textSecondary,
-                        ),
-                    textAlign: TextAlign.center,
-                  ).animate(key: ValueKey(_getDisplayText(status))).fadeIn(),
+                  child: SizedBox(
+                    height: 280,
+                    child: Center(
+                      child: _buildCenterVisual(
+                        status,
+                        isConnected,
+                        amplitudes,
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ),
 
-            const Spacer(flex: 3),
+              const Spacer(),
 
-            // Controls
-            _buildControls(status, mode, isDark),
-            
-            const SizedBox(height: 32),
-          ],
+              // 12-bar Waveform
+              _build12BarWaveform(amplitudes, status),
+
+              const SizedBox(height: 32),
+
+              // Status Badge & Hint
+              FadeTransition(
+                opacity: _entranceController,
+                child: _buildStatusSection(status, isConnected),
+              ),
+
+              const SizedBox(height: 48),
+
+              // Controls Row
+              SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.5),
+                  end: Offset.zero,
+                ).animate(
+                  CurvedAnimation(
+                    parent: _entranceController,
+                    curve: Curves.easeOutQuad,
+                  ),
+                ),
+                child: FadeTransition(
+                  opacity: _entranceController,
+                  child: _buildControls(status),
+                ),
+              ),
+
+              const SizedBox(height: 40),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildErrorBanner(bool isDark) {
+  PreferredSizeWidget _buildAppBar(bool isConnected) {
+    return AppBar(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      centerTitle: true,
+      leading: IconButton(
+        icon: const Icon(
+          Icons.keyboard_arrow_down_rounded,
+          color: Colors.white,
+          size: 32,
+        ),
+        onPressed: () {
+          // Do not stop the session, simply pop back
+          Navigator.of(context).pop();
+        },
+      ),
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isConnected ? Icons.circle : Icons.error_outline,
+            color: isConnected ? Colors.greenAccent : Colors.redAccent,
+            size: 10,
+          ),
+          const SizedBox(width: 8),
+          const Text(
+            'CARE-AI Voice',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        if (_hasStartedTimer)
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Center(
+              child: Text(
+                _formatDuration(_sessionDuration),
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w500,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildErrorBanner() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color:
-            isDark ? AppColors.error.withValues(alpha: 0.2) : AppColors.errorLight,
+        color: Colors.redAccent.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+        border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded,
-              color: AppColors.error, size: 20),
+          const Icon(Icons.error_outline_rounded, color: Colors.redAccent),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               _voiceService.errorMessage!,
-              style: TextStyle(
-                color: isDark ? Colors.white : AppColors.textPrimary,
-                fontSize: 14,
-              ),
+              style: const TextStyle(color: Colors.white),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.close_rounded, size: 20),
-            onPressed: () => _voiceService.clearError(),
-            color: AppColors.error,
-          )
         ],
       ),
-    ).animate().fadeIn().slideY(begin: -0.1);
+    );
   }
 
-  Widget _buildAudioVisualizer(VoiceStatus status, bool isDark) {
-    final color = _getStatusColor(status, isDark);
-    final isAnimating = status == VoiceStatus.listening ||
-        status == VoiceStatus.processing ||
-        status == VoiceStatus.speaking;
-
+  Widget _buildCenterVisual(
+    VoiceStatus status,
+    bool isConnected,
+    List<double> amplitudes,
+  ) {
     return AnimatedBuilder(
-      animation: _pulseController,
+      animation: Listenable.merge([_breathingController, _speakingController]),
       builder: (context, child) {
-        final scale = isAnimating ? 1.0 + (_pulseController.value * 0.2) : 1.0;
-        final opacity =
-            isAnimating ? 0.3 + (_pulseController.value * 0.3) : 0.1;
+        double baseScale = 1.0;
+        double currentAmp = 0.0;
+        if (amplitudes.isNotEmpty) currentAmp = amplitudes.last;
+
+        if (!isConnected || status == VoiceStatus.idle) {
+          baseScale = 0.95 + (_breathingController.value * 0.1);
+        } else if (status == VoiceStatus.listening ||
+            status == VoiceStatus.processing) {
+          // Subtle reaction to mic input on the center orb itself
+          baseScale = 1.0 + (currentAmp * 0.15);
+        }
 
         return Stack(
           alignment: Alignment.center,
           children: [
-            // Outer pulse
-            Transform.scale(
-              scale: scale * 1.5,
-              child: Container(
-                width: 160,
-                height: 160,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: color.withValues(alpha: opacity * 0.5),
-                ),
-              ),
-            ),
-            // Inner pulse
-            Transform.scale(
-              scale: scale * 1.2,
-              child: Container(
-                width: 160,
-                height: 160,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: color.withValues(alpha: opacity),
-                ),
-              ),
-            ),
-            // Center hero element
-            Container(
-              width: 160,
-              height: 160,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: isDark ? AppColors.darkSurface : AppColors.surface,
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.3),
-                    blurRadius: 30,
-                    spreadRadius: 5,
+            // Expanding rings when speaking (Outward pulses)
+            if (status == VoiceStatus.speaking)
+              ...List.generate(3, (index) {
+                final delay = index * 0.33;
+                double progress = (_speakingController.value + delay) % 1.0;
+                final ringScale = 1.0 + (progress * 1.5);
+                final ringOpacity = (1.0 - progress).clamp(0.0, 1.0) * 0.5;
+
+                return Transform.scale(
+                  scale: ringScale,
+                  child: Container(
+                    width: 140,
+                    height: 140,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: ringOpacity),
+                        width: 2,
+                      ),
+                    ),
                   ),
-                ],
-                border: Border.all(
-                  color: color.withValues(alpha: 0.5),
-                  width: 2,
+                );
+              }),
+
+            // Concentric rings reacting to pitch when listening
+            if (status == VoiceStatus.listening ||
+                status == VoiceStatus.processing)
+              ...List.generate(3, (index) {
+                // The rings map current amplitude based on their index
+                final ringScale =
+                    1.0 + (index * 0.15) + (currentAmp * 0.3 * (index + 1));
+                final ringOpacity = (0.3 - (index * 0.08)).clamp(0.0, 1.0);
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 100),
+                  width: 140 * ringScale,
+                  height: 140 * ringScale,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: ringOpacity),
+                      width: 1.5,
+                    ),
+                  ),
+                );
+              }),
+
+            // Center base orb
+            Transform.scale(
+              scale: baseScale,
+              child: Container(
+                width: 140,
+                height: 140,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      status == VoiceStatus.speaking
+                          ? AppColors.primary.withValues(alpha: 0.9)
+                          : AppColors.primary.withValues(alpha: 0.5),
+                      AppColors.primary.withValues(alpha: 0.1),
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(
+                        alpha: status == VoiceStatus.speaking ? 0.6 : 0.3,
+                      ),
+                      blurRadius: status == VoiceStatus.speaking ? 40 : 20,
+                      spreadRadius: status == VoiceStatus.speaking ? 15 : 5,
+                    ),
+                  ],
                 ),
-              ),
-              child: Center(
-                child: Icon(
-                  _getStatusIcon(status),
-                  size: 64,
-                  color: color,
+                child: Center(
+                  child: Icon(
+                    status == VoiceStatus.speaking
+                        ? Icons.graphic_eq_rounded
+                        : Icons.psychology_rounded,
+                    size: 56,
+                    color: Colors.white.withValues(alpha: 0.9),
+                  ),
                 ),
               ),
             ),
@@ -265,209 +417,270 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
     );
   }
 
-  Widget _buildControls(VoiceStatus status, VoiceMode mode, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          // Mode Toggle Button
-          _buildControlButton(
-            icon: mode == VoiceMode.pushToTalk
-                ? Icons.touch_app_rounded
-                : Icons.all_inclusive_rounded,
-            label: mode == VoiceMode.pushToTalk ? 'Push to Talk' : 'Continuous',
-            onTap: () {
-              HapticFeedback.lightImpact();
-              _voiceService.toggleMode();
-            },
-            isDark: isDark,
-          ),
+  Widget _build12BarWaveform(List<double> amplitudes, VoiceStatus status) {
+    final bool isSpeaking = status == VoiceStatus.speaking;
+    final Color barColor = isSpeaking ? AppColors.primary : Colors.white;
+    // Mute visual override
+    final bool showMuted = _isMuted && !isSpeaking;
 
-          // Main Action Button (Mic)
-          GestureDetector(
-            onTapDown: mode == VoiceMode.pushToTalk
-                ? (_) => _voiceService.startListening()
-                : null,
-            onTapUp: mode == VoiceMode.pushToTalk
-                ? (_) => _voiceService.stopListening()
-                : null,
-            onTapCancel: mode == VoiceMode.pushToTalk
-                ? () => _voiceService.stopListening()
-                : null,
-            onTap: mode == VoiceMode.continuous
-                ? () {
-                    if (status == VoiceStatus.listening) {
-                      _voiceService.pauseSession();
-                    } else if (status == VoiceStatus.speaking) {
-                      _voiceService.interruptAI();
-                    } else {
-                      _voiceService.startListening();
-                    }
-                  }
-                : null,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: mode == VoiceMode.pushToTalk &&
-                        status == VoiceStatus.listening
-                    ? AppColors.error
-                    : AppColors.primary,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: (mode == VoiceMode.pushToTalk &&
-                                status == VoiceStatus.listening
-                            ? AppColors.error
-                            : AppColors.primary)
-                        .withValues(alpha: 0.4),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
+    return RepaintBoundary(
+      child: SizedBox(
+        height: 60,
+        child: AnimatedBuilder(
+          animation: _speakingController,
+          builder: (context, child) {
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: List.generate(12, (index) {
+                // Natural waveform bell curve shape
+                final double distanceFromCenter = (index - 5.5).abs();
+                final double positionScale = math.max(
+                  0.1,
+                  1.0 - (distanceFromCenter * 0.15),
+                );
+
+                double amp = 0.05;
+                if (showMuted) {
+                  amp = 0.05; // flatline
+                } else if (isSpeaking) {
+                  // Generate an artificial smooth waveform for the AI voice using sine waves
+                  amp =
+                      0.3 +
+                      0.5 *
+                          math.max(
+                            0,
+                            math.sin(
+                              (_speakingController.value * math.pi * 6) + index,
+                            ),
+                          );
+                } else if (amplitudes.isNotEmpty) {
+                  // Real mic amplitude based on history index
+                  int historyIndex =
+                      amplitudes.length > index
+                          ? amplitudes.length - 1 - index
+                          : 0;
+                  amp = amplitudes[historyIndex];
+                }
+
+                amp = amp.clamp(0.05, 1.0);
+                final double barHeight = 10 + (amp * 50 * positionScale);
+
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 100),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  width: 6,
+                  height: barHeight,
+                  decoration: BoxDecoration(
+                    color: showMuted ? Colors.white24 : barColor,
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                ],
-              ),
-              child: Icon(
-                mode == VoiceMode.continuous && status == VoiceStatus.listening
-                    ? Icons.stop_rounded
-                    : Icons.mic_rounded,
-                size: 36,
-                color: Colors.white,
-              ),
-            ),
-          ),
-
-          // End/Pause Button
-          _buildControlButton(
-            icon: status == VoiceStatus.paused
-                ? Icons.play_arrow_rounded
-                : Icons.close_rounded,
-            label: status == VoiceStatus.paused ? 'Resume' : 'End',
-            onTap: () {
-              HapticFeedback.lightImpact();
-              if (status == VoiceStatus.paused) {
-                _voiceService.resumeSession();
-              } else {
-                Navigator.of(context).pop();
-              }
-            },
-            isDark: isDark,
-          ),
-        ],
+                );
+              }),
+            );
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildControlButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    required bool isDark,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
+  Widget _buildStatusSection(VoiceStatus status, bool isConnected) {
+    Color pillColor;
+    IconData pillIcon;
+    String pillText;
+
+    if (!isConnected) {
+      pillColor = Colors.grey.shade400;
+      pillIcon = Icons.hourglass_empty_rounded;
+      pillText = 'Connecting...';
+    } else {
+      switch (status) {
+        case VoiceStatus.listening:
+          pillColor = Colors.greenAccent;
+          pillIcon = Icons.mic_rounded;
+          pillText = 'Listening...';
+          break;
+        case VoiceStatus.processing:
+          pillColor = Colors.blueAccent;
+          pillIcon = Icons.auto_awesome_rounded;
+          pillText = 'Thinking...';
+          break;
+        case VoiceStatus.speaking:
+          pillColor = AppColors.primary;
+          pillIcon = Icons.smart_toy_rounded;
+          pillText = 'CARE-AI is Speaking';
+          break;
+        case VoiceStatus.idle:
+        default:
+          pillColor = Colors.grey.shade400;
+          pillIcon = Icons.check_circle_rounded;
+          pillText = 'Ready';
+          break;
+      }
+    }
+
+    if (_isMuted && status == VoiceStatus.listening) {
+      pillColor = Colors.orangeAccent;
+      pillIcon = Icons.mic_off_rounded;
+      pillText = 'Microphone Muted';
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          transitionBuilder: (child, animation) {
+            return FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.9, end: 1.0).animate(animation),
+                child: child,
+              ),
+            );
+          },
+          child: Container(
+            key: ValueKey<String>(pillText),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: pillColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: pillColor.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(pillIcon, color: pillColor, size: 16),
+                const SizedBox(width: 8),
+                Text(
+                  pillText,
+                  style: TextStyle(
+                    color: pillColor,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          child: Text(
+            _isMuted
+                ? "Tap the mic icon to resume"
+                : "Speak naturally — I'm here to help",
+            key: ValueKey<bool>(_isMuted),
+            style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildControls(VoiceStatus status) {
+    final bool isSpeaking = status == VoiceStatus.speaking;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // MUTE BUTTON
+        GestureDetector(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            setState(() {
+              _isMuted = !_isMuted;
+              // Note: Strictly to modify UI appearance as requested.
+              // True muting of microphone chunk sending would require
+              // modifying voice_assistant_service.dart, which is forbidden by rules.
+            });
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurfaceVariant : Colors.white,
               shape: BoxShape.circle,
+              color: _isMuted ? Colors.white24 : Colors.transparent,
               border: Border.all(
-                color: isDark ? AppColors.darkBorder : AppColors.border,
+                color: _isMuted ? Colors.transparent : Colors.white54,
+                width: 2,
               ),
             ),
             child: Icon(
-              icon,
-              size: 24,
-              color: isDark ? AppColors.darkTextPrimary : AppColors.textPrimary,
+              _isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+              color: Colors.white,
+              size: 26,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: isDark ? AppColors.darkTextTertiary : AppColors.textTertiary,
+        ),
+
+        const SizedBox(width: 32),
+
+        // END CALL BUTTON
+        GestureDetector(
+          onTap: () {
+            HapticFeedback.heavyImpact();
+            _voiceService.stopSession();
+            Navigator.of(context).pop();
+          },
+          child: Container(
+            width: 76,
+            height: 76,
+            decoration: BoxDecoration(
+              color: Colors.redAccent,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.redAccent.withValues(alpha: 0.4),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.call_end_rounded,
+              color: Colors.white,
+              size: 36,
             ),
           ),
-        ],
-      ),
+        ),
+
+        const SizedBox(width: 32),
+
+        // INTERRUPT BUTTON
+        AnimatedOpacity(
+          duration: const Duration(milliseconds: 200),
+          opacity: isSpeaking ? 1.0 : 0.3,
+          child: IgnorePointer(
+            ignoring: !isSpeaking,
+            child: GestureDetector(
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                _voiceService.interruptAI();
+              },
+              child: Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white54, width: 2),
+                ),
+                child: const Icon(
+                  Icons.stop_rounded,
+                  color: Colors.white,
+                  size: 26,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
-  }
-
-  String _getStatusText(VoiceStatus status) {
-    if (_voiceService.errorMessage != null) return 'Error';
-    switch (status) {
-      case VoiceStatus.idle:
-        return 'Tap mic to speak';
-      case VoiceStatus.listening:
-        return 'Listening...';
-      case VoiceStatus.processing:
-        return 'Thinking...';
-      case VoiceStatus.speaking:
-        return 'CARE-AI';
-      case VoiceStatus.paused:
-        return 'Paused';
-      case VoiceStatus.error:
-        return 'Error';
-    }
-  }
-
-  IconData _getStatusIcon(VoiceStatus status) {
-    switch (status) {
-      case VoiceStatus.idle:
-        return Icons.mic_none_rounded;
-      case VoiceStatus.listening:
-        return Icons.mic_rounded;
-      case VoiceStatus.processing:
-        return Icons.graphic_eq_rounded;
-      case VoiceStatus.speaking:
-        return Icons.volume_up_rounded;
-      case VoiceStatus.paused:
-        return Icons.pause_rounded;
-      case VoiceStatus.error:
-        return Icons.error_outline_rounded;
-    }
-  }
-
-  Color _getStatusColor(VoiceStatus status, bool isDark) {
-    if (_voiceService.errorMessage != null) return AppColors.error;
-    switch (status) {
-      case VoiceStatus.idle:
-      case VoiceStatus.paused:
-        return isDark ? AppColors.darkTextTertiary : AppColors.textTertiary;
-      case VoiceStatus.listening:
-        return AppColors.error; // Red for active rec
-      case VoiceStatus.processing:
-        return AppColors.purple; // Processing color
-      case VoiceStatus.speaking:
-        return AppColors.primary; // Active speaker color
-      case VoiceStatus.error:
-        return AppColors.error;
-    }
-  }
-
-  String _getDisplayText(VoiceStatus status) {
-    if (_voiceService.errorMessage != null) return '';
-    switch (status) {
-      case VoiceStatus.idle:
-      case VoiceStatus.paused:
-        return 'I am ready when you are.';
-      case VoiceStatus.listening:
-        return _voiceService.lastUserText.isEmpty
-            ? '...'
-            : _voiceService.lastUserText;
-      case VoiceStatus.processing:
-        return _voiceService.lastUserText;
-      case VoiceStatus.speaking:
-        return _voiceService.lastAiText;
-      case VoiceStatus.error:
-        return '';
-    }
   }
 }

@@ -15,7 +15,7 @@ class SoundMatchGameScreen extends StatefulWidget {
 class _SoundMatchGameScreenState extends State<SoundMatchGameScreen> {
   final _firebaseService = FirebaseService();
   final _ttsService = TtsService();
-  
+
   // Assuming we use TTS to simulate sounds (e.g. "Meow!", "Woof!") if actual audio files aren't provided
   final List<_SoundPair> _allPairs = [
     _SoundPair('🐶', 'Dog', 'Woof woof!'),
@@ -59,9 +59,11 @@ class _SoundMatchGameScreenState extends State<SoundMatchGameScreen> {
   void _setupQuestion() {
     // Pick 3 options for the current question
     final currentPair = _levelPairs[_current];
-    final otherPairs = _allPairs.where((p) => p.animal != currentPair.animal).toList()..shuffle();
+    final otherPairs =
+        _allPairs.where((p) => p.animal != currentPair.animal).toList()
+          ..shuffle();
     _options = [currentPair, otherPairs[0], otherPairs[1]]..shuffle();
-    
+
     // Auto-play sound
     _playSound(currentPair.sound);
   }
@@ -98,15 +100,15 @@ class _SoundMatchGameScreenState extends State<SoundMatchGameScreen> {
 
   void _answer(int index) {
     if (_selected != null) return;
-    
+
     _ttsService.stop();
     setState(() => _selected = index);
-    
+
     final isCorrect = _options[index] == _levelPairs[_current];
     if (isCorrect) {
       _score++;
     }
-    
+
     Future.delayed(const Duration(milliseconds: 1200), () {
       if (!mounted) return;
       if (_current < _levelPairs.length - 1) {
@@ -125,60 +127,93 @@ class _SoundMatchGameScreenState extends State<SoundMatchGameScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: Column(
-          children: [
-            const Icon(Icons.music_note_rounded, color: AppColors.purple, size: 64)
-                .animate(onPlay: (controller) => controller.repeat())
-                .scale(duration: 600.ms, curve: Curves.easeInOut)
-                .then()
-                .scale(begin: const Offset(1.2, 1.2), end: const Offset(1, 1), duration: 600.ms),
-            const SizedBox(height: 16),
-            const Text('Great Listening!', 
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 28, color: AppColors.purple)),
-          ],
-        ),
-        content: Text(
-          'You matched $_score out of ${_levelPairs.length} sounds clearly in Level $_level!',
-          textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 16),
-        ),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
-          if (_level < 3)
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.purple,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              onPressed: () {
-                Navigator.pop(context);
-                setState(() {
-                  _level++;
-                  _startLevel();
-                });
-              },
-              child: const Text('Next Level', style: TextStyle(fontWeight: FontWeight.bold)),
-            )
-          else
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.success,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pop(context); // Go back home
-              },
-              child: const Text('Finish Game', style: TextStyle(fontWeight: FontWeight.bold)),
+      builder:
+          (_) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
             ),
-        ],
-      ),
+            title: Column(
+              children: [
+                const Icon(
+                      Icons.music_note_rounded,
+                      color: AppColors.purple,
+                      size: 64,
+                    )
+                    .animate(onPlay: (controller) => controller.repeat())
+                    .scale(duration: 600.ms, curve: Curves.easeInOut)
+                    .then()
+                    .scale(
+                      begin: const Offset(1.2, 1.2),
+                      end: const Offset(1, 1),
+                      duration: 600.ms,
+                    ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Great Listening!',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 28,
+                    color: AppColors.purple,
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              'You matched $_score out of ${_levelPairs.length} sounds clearly in Level $_level!',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 16),
+            ),
+            actionsAlignment: MainAxisAlignment.center,
+            actions: [
+              if (_level < 3)
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.purple,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    setState(() {
+                      _level++;
+                      _startLevel();
+                    });
+                  },
+                  child: const Text(
+                    'Next Level',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                )
+              else
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.pop(context); // Go back home
+                  },
+                  child: const Text(
+                    'Finish Game',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+            ],
+          ),
     );
   }
 
@@ -186,7 +221,7 @@ class _SoundMatchGameScreenState extends State<SoundMatchGameScreen> {
   Widget build(BuildContext context) {
     if (_levelPairs.isEmpty || _options.isEmpty) return const SizedBox();
     final pair = _levelPairs[_current];
-    
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Sound Match - L$_level'),
@@ -194,8 +229,13 @@ class _SoundMatchGameScreenState extends State<SoundMatchGameScreen> {
           Center(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text('${_current + 1}/${_levelPairs.length}',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+              child: Text(
+                '${_current + 1}/${_levelPairs.length}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                ),
+              ),
             ),
           ),
         ],
@@ -210,94 +250,129 @@ class _SoundMatchGameScreenState extends State<SoundMatchGameScreen> {
               LinearProgressIndicator(
                 value: (_current) / _levelPairs.length,
                 backgroundColor: AppColors.surfaceVariant,
-                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.purple),
+                valueColor: const AlwaysStoppedAnimation<Color>(
+                  AppColors.purple,
+                ),
                 borderRadius: BorderRadius.circular(8),
                 minHeight: 12,
               ).animate().fadeIn(),
-              
+
               const SizedBox(height: 48),
 
-              const Text('What makes this sound?',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                  textAlign: TextAlign.center),
-              
+              const Text(
+                'What makes this sound?',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
               const SizedBox(height: 32),
-              
+
               // Big Sound Button
               GestureDetector(
                 onTap: () => _playSound(pair.sound),
                 child: Container(
-                  width: 160,
-                  height: 160,
-                  decoration: BoxDecoration(
-                    color: _isPlayingAudio ? AppColors.purple : AppColors.surfaceVariant,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.purple, width: 4),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.purple.withValues(alpha: _isPlayingAudio ? 0.5 : 0.2),
-                        blurRadius: _isPlayingAudio ? 32 : 16,
-                        spreadRadius: _isPlayingAudio ? 8 : 0,
-                      )
-                    ],
-                  ),
-                  child: Center(
-                    child: Icon(
-                      Icons.volume_up_rounded, 
-                      size: 80, 
-                      color: _isPlayingAudio ? Colors.white : AppColors.purple,
-                    ),
-                  ),
-                ).animate(target: _isPlayingAudio ? 1 : 0)
-                  .scale(end: const Offset(1.1, 1.1), duration: 200.ms)
-                  .shimmer(duration: 1.seconds),
+                      width: 160,
+                      height: 160,
+                      decoration: BoxDecoration(
+                        color:
+                            _isPlayingAudio
+                                ? AppColors.purple
+                                : AppColors.surfaceVariant,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.purple, width: 4),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.purple.withValues(
+                              alpha: _isPlayingAudio ? 0.5 : 0.2,
+                            ),
+                            blurRadius: _isPlayingAudio ? 32 : 16,
+                            spreadRadius: _isPlayingAudio ? 8 : 0,
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Icon(
+                          Icons.volume_up_rounded,
+                          size: 80,
+                          color:
+                              _isPlayingAudio ? Colors.white : AppColors.purple,
+                        ),
+                      ),
+                    )
+                    .animate(target: _isPlayingAudio ? 1 : 0)
+                    .scale(end: const Offset(1.1, 1.1), duration: 200.ms)
+                    .shimmer(duration: 1.seconds),
               ),
-              
+
               const Spacer(),
-              
+
               // Options
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: _options.asMap().entries.map((e) {
-                  final isCorrect = e.value == pair;
-                  final isSelected = e.key == _selected;
-                  
-                  Color bgColor = AppColors.surfaceVariant;
-                  Color borderColor = AppColors.divider;
-                  
-                  if (_selected != null) {
-                    if (isCorrect) {
-                      bgColor = AppColors.success.withValues(alpha: 0.2);
-                      borderColor = AppColors.success;
-                    } else if (isSelected) {
-                      bgColor = AppColors.error.withValues(alpha: 0.2);
-                      borderColor = AppColors.error;
-                    }
-                  }
+                children:
+                    _options.asMap().entries.map((e) {
+                      final isCorrect = e.value == pair;
+                      final isSelected = e.key == _selected;
 
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () => _answer(e.key),
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 8),
-                        height: 120,
-                        decoration: BoxDecoration(
-                          color: bgColor,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: borderColor, width: isSelected || (isCorrect && _selected != null) ? 3 : 1),
-                          boxShadow: [
-                            BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 4))
-                          ],
-                        ),
-                        child: Center(
-                          child: Text(e.value.emoji, style: const TextStyle(fontSize: 64)),
-                        ),
-                      ),
-                    ).animate()
-                      .fadeIn(delay: Duration(milliseconds: 100 * e.key))
-                      .slideY(begin: 0.2, curve: Curves.easeOutBack),
-                  );
-                }).toList(),
+                      Color bgColor = AppColors.surfaceVariant;
+                      Color borderColor = AppColors.divider;
+
+                      if (_selected != null) {
+                        if (isCorrect) {
+                          bgColor = AppColors.success.withValues(alpha: 0.2);
+                          borderColor = AppColors.success;
+                        } else if (isSelected) {
+                          bgColor = AppColors.error.withValues(alpha: 0.2);
+                          borderColor = AppColors.error;
+                        }
+                      }
+
+                      return Expanded(
+                        child: GestureDetector(
+                              onTap: () => _answer(e.key),
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                height: 120,
+                                decoration: BoxDecoration(
+                                  color: bgColor,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: borderColor,
+                                    width:
+                                        isSelected ||
+                                                (isCorrect && _selected != null)
+                                            ? 3
+                                            : 1,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.05,
+                                      ),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    e.value.emoji,
+                                    style: const TextStyle(fontSize: 64),
+                                  ),
+                                ),
+                              ),
+                            )
+                            .animate()
+                            .fadeIn(delay: Duration(milliseconds: 100 * e.key))
+                            .slideY(begin: 0.2, curve: Curves.easeOutBack),
+                      );
+                    }).toList(),
               ),
               const SizedBox(height: 32),
             ],

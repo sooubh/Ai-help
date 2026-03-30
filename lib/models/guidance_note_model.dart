@@ -40,9 +40,10 @@ class GuidanceNoteModel {
       childId: map['childId'] ?? '',
       title: map['title'] ?? 'New Guidance Note',
       content: map['content'] ?? '',
-      createdAt: map['createdAt'] != null
-          ? DateTime.parse(map['createdAt'])
-          : DateTime.now(),
+      createdAt:
+          map['createdAt'] != null
+              ? DateTime.parse(map['createdAt'])
+              : DateTime.now(),
       isRead: map['isRead'] ?? false,
     );
   }

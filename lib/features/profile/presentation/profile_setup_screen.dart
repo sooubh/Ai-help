@@ -39,7 +39,18 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final List<String> _selectedGoals = [];
 
   File? _imageFile;
+  ChildProfileModel? _editingProfile;
+  bool _didLoadInitialProfile = false;
+  bool _isPrefillingProfile = true;
   bool _isLoading = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didLoadInitialProfile) return;
+    _didLoadInitialProfile = true;
+    _loadExistingProfileForEdit();
+  }
 
   @override
   void dispose() {
@@ -101,21 +112,36 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         );
       }
 
-      final profile = ChildProfileModel(
-        name: _nameController.text.trim(),
-        age: int.parse(_ageController.text.trim()),
-        gender: _selectedGender,
-        conditions: _selectedConditions,
-        communicationLevel: _selectedCommunicationLevel!,
-        behavioralConcerns: _selectedBehaviors,
-        sensoryIssues: _selectedSensory,
-        motorSkillLevel: _selectedMotorSkillLevel ?? 'Unknown',
-        learningAbilities: [],
-        parentGoals: _selectedGoals,
-        currentTherapyStatus:
-            _selectedTherapyStatus ?? 'Not currently in therapy',
-        photoUrl: photoUrl,
-      );
+      final profile =
+          _editingProfile?.copyWith(
+            name: _nameController.text.trim(),
+            age: int.parse(_ageController.text.trim()),
+            gender: _selectedGender,
+            conditions: List<String>.from(_selectedConditions),
+            communicationLevel: _selectedCommunicationLevel!,
+            behavioralConcerns: List<String>.from(_selectedBehaviors),
+            sensoryIssues: List<String>.from(_selectedSensory),
+            motorSkillLevel: _selectedMotorSkillLevel ?? 'Unknown',
+            parentGoals: List<String>.from(_selectedGoals),
+            currentTherapyStatus:
+                _selectedTherapyStatus ?? 'Not currently in therapy',
+            photoUrl: photoUrl ?? _editingProfile?.photoUrl,
+          ) ??
+          ChildProfileModel(
+            name: _nameController.text.trim(),
+            age: int.parse(_ageController.text.trim()),
+            gender: _selectedGender,
+            conditions: List<String>.from(_selectedConditions),
+            communicationLevel: _selectedCommunicationLevel!,
+            behavioralConcerns: List<String>.from(_selectedBehaviors),
+            sensoryIssues: List<String>.from(_selectedSensory),
+            motorSkillLevel: _selectedMotorSkillLevel ?? 'Unknown',
+            learningAbilities: const [],
+            parentGoals: List<String>.from(_selectedGoals),
+            currentTherapyStatus:
+                _selectedTherapyStatus ?? 'Not currently in therapy',
+            photoUrl: photoUrl,
+          );
 
       await _firebaseService.saveChildProfile(profile);
       if (!mounted) return;
@@ -140,9 +166,91 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     );
   }
 
+  Future<void> _loadExistingProfileForEdit() async {
+    try {
+      ChildProfileModel? profile;
+      final args = ModalRoute.of(context)?.settings.arguments;
+
+      if (args is ChildProfileModel) {
+        profile = args;
+      } else if (args is Map<String, dynamic>) {
+        final childId = args['childId'] as String?;
+        if (childId != null && childId.isNotEmpty) {
+          profile = await _firebaseService.getChildProfile(childId);
+        }
+      }
+
+      profile ??= await _firebaseService.getChildProfile();
+      if (!mounted) return;
+
+      if (profile != null) {
+        _applyProfileToForm(profile);
+      }
+    } catch (_) {
+      // Keep form in create mode if prefill fails.
+    } finally {
+      if (mounted) {
+        setState(() => _isPrefillingProfile = false);
+      }
+    }
+  }
+
+  void _applyProfileToForm(ChildProfileModel profile) {
+    _editingProfile = profile;
+    _nameController.text = profile.name;
+    _ageController.text = profile.age.toString();
+
+    _selectedGender = _pickIfInOptions(profile.gender, AppStrings.genders);
+    _selectedCommunicationLevel = _pickIfInOptions(
+      profile.communicationLevel,
+      AppStrings.communicationLevels,
+    );
+    _selectedMotorSkillLevel = _pickIfInOptions(
+      profile.motorSkillLevel,
+      AppStrings.motorSkillLevels,
+    );
+    _selectedTherapyStatus = _pickIfInOptions(
+      profile.currentTherapyStatus,
+      AppStrings.therapyStatuses,
+    );
+
+    _selectedConditions
+      ..clear()
+      ..addAll(
+        profile.conditions.where((e) => AppStrings.commonConditions.contains(e)),
+      );
+    _selectedBehaviors
+      ..clear()
+      ..addAll(
+        profile.behavioralConcerns.where(
+          (e) => AppStrings.commonBehavioralConcerns.contains(e),
+        ),
+      );
+    _selectedSensory
+      ..clear()
+      ..addAll(
+        profile.sensoryIssues.where((e) => AppStrings.commonSensoryIssues.contains(e)),
+      );
+    _selectedGoals
+      ..clear()
+      ..addAll(profile.parentGoals.where((e) => AppStrings.commonParentGoals.contains(e)));
+  }
+
+  String? _pickIfInOptions(String? value, List<String> options) {
+    if (value == null) return null;
+    return options.contains(value) ? value : null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (_isPrefillingProfile) {
+      return Scaffold(
+        appBar: AppBar(title: const Text(AppStrings.profileSetup)),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -162,7 +270,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
               children: [
                 // Header
                 Text(
-                  'Tell us about your child',
+                  _editingProfile == null
+                      ? 'Tell us about your child'
+                      : 'Update your child profile',
                   style: Theme.of(
                     context,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
@@ -194,6 +304,12 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                                 _imageFile != null
                                     ? DecorationImage(
                                       image: FileImage(_imageFile!),
+                                      fit: BoxFit.cover,
+                                    )
+                                    : (_editingProfile?.photoUrl != null &&
+                                        _editingProfile!.photoUrl!.isNotEmpty)
+                                    ? DecorationImage(
+                                      image: NetworkImage(_editingProfile!.photoUrl!),
                                       fit: BoxFit.cover,
                                     )
                                     : null,
@@ -389,7 +505,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                             )
                             : const Icon(Icons.check_circle_rounded),
                     label: Text(
-                      _isLoading ? 'Saving...' : AppStrings.saveProfile,
+                      _isLoading
+                          ? 'Saving...'
+                          : (_editingProfile == null
+                              ? AppStrings.saveProfile
+                              : 'Update Profile'),
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,

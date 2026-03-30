@@ -9,6 +9,9 @@ import 'drag_sort_game_screen.dart';
 import 'emotion_quiz_game_screen.dart';
 import 'sound_match_game_screen.dart';
 import 'visual_tracker_game_screen.dart';
+import 'breathing_bubble_game_screen.dart';
+import 'shape_matcher_game_screen.dart';
+import 'sequence_memory_game_screen.dart';
 
 /// Games Hub — grid of interactive therapy games.
 class GamesHubScreen extends StatelessWidget {
@@ -52,10 +55,11 @@ class _GameCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => game.screen),
-      ),
+      onTap:
+          () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => game.screen),
+          ),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -68,9 +72,7 @@ class _GameCard extends StatelessWidget {
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: game.color.withValues(alpha: 0.2),
-          ),
+          border: Border.all(color: game.color.withValues(alpha: 0.2)),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -87,9 +89,9 @@ class _GameCard extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               game.title,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
               textAlign: TextAlign.center,
               maxLines: 2,
             ),
@@ -105,17 +107,17 @@ class _GameCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               game.ageRange,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontSize: 10,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontSize: 10),
             ),
           ],
         ),
       ),
     ).animate().fadeIn(
-          delay: Duration(milliseconds: 80 * index),
-          duration: 400.ms,
-        );
+      delay: Duration(milliseconds: 80 * index),
+      duration: 400.ms,
+    );
   }
 }
 
@@ -185,5 +187,29 @@ final _games = [
     icon: Icons.visibility_rounded,
     color: const Color(0xFFEC4899),
     screen: const VisualTrackerGameScreen(),
+  ),
+  _GameInfo(
+    title: 'Breathing Bubble',
+    skill: 'Wellness',
+    ageRange: 'Ages 3-12',
+    icon: Icons.air_rounded,
+    color: const Color(0xFF38BDF8),
+    screen: const BreathingBubbleGameScreen(),
+  ),
+  _GameInfo(
+    title: 'Shape Matcher',
+    skill: 'Motor Skills',
+    ageRange: 'Ages 3-7',
+    icon: Icons.category_rounded,
+    color: const Color(0xFF8B5CF6),
+    screen: const ShapeMatcherGameScreen(),
+  ),
+  _GameInfo(
+    title: 'Sequence Memory',
+    skill: 'Cognitive',
+    ageRange: 'Ages 5-12',
+    icon: Icons.memory_rounded,
+    color: const Color(0xFFF43F5E),
+    screen: const SequenceMemoryGameScreen(),
   ),
 ];

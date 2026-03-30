@@ -1,371 +1,397 @@
 import 'dart:async';
-
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:record/record.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:uuid/uuid.dart';
 
+import '../main.dart';
 import '../models/voice_session_model.dart';
-import '../models/chat_message_model.dart';
 import '../models/child_profile_model.dart';
 import '../models/user_event_model.dart';
-import 'ai_service.dart';
-import 'tts_service.dart';
+import 'gemini_live_service.dart';
+import 'pcm_audio_player.dart';
 import 'firebase_service.dart';
+import 'context_builder_service.dart';
+import 'cache/smart_data_repository.dart';
+import '../core/utils/app_logger.dart';
 
-/// Orchestrates the full voice assistant pipeline:
-/// Microphone (STT) → Gemini AI → Speaker (TTS)
-///
-/// Wraps existing [AiService], [TtsService], and [FirebaseService]
-/// without duplicating any logic. Extends [ChangeNotifier] to
-/// drive the UI reactively.
 class VoiceAssistantService extends ChangeNotifier {
-  final AiService _aiService;
-  final TtsService _ttsService = TtsService();
+  // RMS amplitude threshold below which audio is treated as silence/noise.
+  // PCM16 range is 0–32768. 400 ≈ -38 dBFS — filters fans, AC, background TV.
+  static const double _kNoiseFloor = 400.0;
+
+  final GeminiLiveService _liveService = GeminiLiveService();
+  final PcmAudioPlayer _audioPlayer = PcmAudioPlayer();
+  final AudioRecorder _audioRecorder = AudioRecorder();
   final FirebaseService _firebaseService = FirebaseService();
-  final stt.SpeechToText _speech = stt.SpeechToText();
   final Uuid _uuid = const Uuid();
 
-  // ── Session state ────────────────────────────────────────────
   VoiceSessionModel? _session;
   VoiceSessionModel? get session => _session;
-
-  String _lastUserText = '';
-  String get lastUserText => _lastUserText;
-
-  String _lastAiText = '';
-  String get lastAiText => _lastAiText;
 
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
-  bool _speechAvailable = false;
-  bool get speechAvailable => _speechAvailable;
+  bool _micAvailable = false;
+  bool get isConnected => _liveService.isConnected;
 
-  // ── Convenience getters for UI ───────────────────────────────
   bool get isActive => _session?.isActive ?? false;
   bool get isListening => _session?.status == VoiceStatus.listening;
-  bool get isProcessing => _session?.status == VoiceStatus.processing;
   bool get isSpeaking => _session?.status == VoiceStatus.speaking;
-  bool get isPaused => _session?.status == VoiceStatus.paused;
   bool get isIdle => _session == null || _session!.status == VoiceStatus.idle;
-  VoiceMode get mode => _session?.mode ?? VoiceMode.pushToTalk;
 
-  // ── Internal ─────────────────────────────────────────────────
-  Timer? _silenceTimer;
+  StreamSubscription? _micSub;
+  StreamSubscription? _audioSub;
+  StreamSubscription? _msgSub;
   StreamSubscription? _connectivitySub;
   bool _isOnline = true;
-  bool _disposed = false;
 
-  /// Additional voice-specific instruction appended to Gemini context.
-  static const String _voiceSystemAddition = '''
-VOICE MODE RULES (in addition to base rules):
-- Keep responses SHORT (under 100 words) — the user is listening, not reading.
-- Use a warm, conversational tone. No markdown formatting.
-- If the input is unclear, ask ONE short clarifying question.
-- Start your response directly — no greetings or preambles after the first exchange.
-- Use simple sentence structures suitable for spoken delivery.
-''';
+  Timer? _contextRefreshTimer;
 
-  VoiceAssistantService(this._aiService);
+  // Prevents addChunk() firing before start() completes
+  bool _playerStarting = false;
 
-  // ═══════════════════════════════════════════════════════════════
-  // SESSION LIFECYCLE
-  // ═══════════════════════════════════════════════════════════════
+  final List<double> _waveformAmplitudes = [];
+  List<double> get waveformAmplitudes => _waveformAmplitudes;
 
-  /// Initialize the voice pipeline. Must be called before [startSession].
   Future<bool> initialize() async {
     try {
-      _speechAvailable = await _speech.initialize(
-        onError: (error) => _handleSttError(error.errorMsg),
-        onStatus: (status) => _handleSttStatus(status),
-      );
+      _micAvailable = await _audioRecorder.hasPermission();
 
-      await _ttsService.init();
-
-      // Monitor connectivity
-      _connectivitySub = Connectivity()
-          .onConnectivityChanged
-          .listen((results) {
+      _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
         final wasOnline = _isOnline;
         _isOnline = results.any((r) => r != ConnectivityResult.none);
 
         if (!_isOnline && wasOnline && isActive) {
-          _setError('You appear to be offline. Voice assistant needs an internet connection.');
-          pauseSession();
-        } else if (_isOnline && !wasOnline && isPaused) {
-          clearError();
-          resumeSession();
+          _setError('You appear to be offline.');
+          stopSession();
         }
-        notifyListeners();
       });
 
-      notifyListeners();
-      return _speechAvailable;
-    } catch (e) {
-      debugPrint('VoiceAssistant init error: $e');
-      _speechAvailable = false;
-      notifyListeners();
+      return _micAvailable;
+    } catch (e, stack) {
+      AppLogger.error(
+        'VoiceAssistantService',
+        'Initialization error',
+        e,
+        stack,
+      );
+      _micAvailable = false;
       return false;
     }
   }
 
-  /// Start a new voice session.
-  Future<void> startSession({
-    VoiceMode mode = VoiceMode.pushToTalk,
+  Future<void> startLiveSession({
     ChildProfileModel? childProfile,
+    String? currentScreen,
   }) async {
-    if (!_speechAvailable) {
-      _setError('Microphone is not available. Please check permissions.');
+    if (!_micAvailable) {
+      _setError('Microphone permission denied.');
       return;
     }
-
     if (!_isOnline) {
-      _setError('No internet connection. Please connect and try again.');
+      _setError('No internet connection.');
       return;
     }
-
-    // Initialize AI chat with child context
-    _aiService.startChatSession(childProfile: childProfile);
 
     _session = VoiceSessionModel.create(
       sessionId: _uuid.v4(),
-      mode: mode,
+      mode: VoiceMode.continuous,
     );
-    _lastUserText = '';
-    _lastAiText = '';
     _errorMessage = null;
+    _updateStatus(VoiceStatus.processing);
 
-    // Log session start event
-    _logEvent('voice_session_started', {'mode': mode.name});
+    // Build full context before connecting
+    final contextService = ContextBuilderService(SmartDataRepository(_firebaseService));
+    final userId = _firebaseService.currentUser?.uid;
 
-    _updateStatus(VoiceStatus.idle);
-
-    // In continuous mode, start listening immediately
-    if (mode == VoiceMode.continuous) {
-      await startListening();
-    }
-  }
-
-  /// Stop and clean up the session.
-  Future<void> stopSession() async {
-    _silenceTimer?.cancel();
-
-    try {
-      if (_speech.isListening) {
-        await _speech.stop();
-      }
-      await _ttsService.stop();
-    } catch (_) {}
-
-    if (_session != null) {
-      _logEvent('voice_session_ended', {
-        'duration_seconds': _session!.elapsed.inSeconds,
-        'message_count': _session!.messageCount,
-        'mode': _session!.mode.name,
-      });
-    }
-
-    _session = null;
-    _lastUserText = '';
-    _lastAiText = '';
-    _errorMessage = null;
-    notifyListeners();
-  }
-
-  /// Pause the session (e.g., app backgrounded).
-  void pauseSession() {
-    if (_session == null) return;
-    _silenceTimer?.cancel();
-
-    if (_speech.isListening) {
-      _speech.stop();
-    }
-    _ttsService.stop();
-
-    _updateStatus(VoiceStatus.paused);
-  }
-
-  /// Resume a paused session.
-  Future<void> resumeSession() async {
-    if (_session == null || _session!.status != VoiceStatus.paused) return;
-
-    _updateStatus(VoiceStatus.idle);
-
-    if (_session!.mode == VoiceMode.continuous) {
-      await startListening();
-    }
-  }
-
-  /// Toggle between push-to-talk and continuous modes.
-  void toggleMode() {
-    if (_session == null) return;
-
-    final newMode = _session!.mode == VoiceMode.pushToTalk
-        ? VoiceMode.continuous
-        : VoiceMode.pushToTalk;
-
-    // Stop any active listening first
-    if (_speech.isListening) {
-      _speech.stop();
-    }
-
-    _session = _session!.copyWith(mode: newMode);
-
-    // If switching to continuous and idle, start listening
-    if (newMode == VoiceMode.continuous &&
-        _session!.status == VoiceStatus.idle) {
-      startListening();
-    }
-
-    notifyListeners();
-  }
-
-  // ═══════════════════════════════════════════════════════════════
-  // LISTENING CONTROLS
-  // ═══════════════════════════════════════════════════════════════
-
-  /// Start listening for speech input.
-  Future<void> startListening() async {
-    if (_session == null || !_speechAvailable) return;
-
-    // Interrupt AI if it's speaking
-    if (isSpeaking) {
-      await _ttsService.stop();
-    }
-
-    clearError();
-    _updateStatus(VoiceStatus.listening);
-
-    // Haptic feedback
-    HapticFeedback.lightImpact();
-
-    try {
-      await _speech.listen(
-        onResult: (result) {
-          _lastUserText = result.recognizedWords;
-          notifyListeners();
-
-          if (result.finalResult && result.recognizedWords.isNotEmpty) {
-            _processUserInput(result.recognizedWords);
-          }
-        },
-        listenFor: const Duration(seconds: 30),
-        pauseFor: const Duration(seconds: 4),
-        listenOptions: stt.SpeechListenOptions(
-          cancelOnError: true,
-          listenMode: stt.ListenMode.dictation,
-        ),
+    String fullContext = "";
+    if (userId != null) {
+      fullContext = await contextService.buildFullContext(
+        userId: userId,
+        childProfile: childProfile,
       );
-
-      // Start silence timer for continuous mode
-      _resetSilenceTimer();
-    } catch (e) {
-      debugPrint('Listen error: $e');
-      _setError('Could not start listening. Please try again.');
-      _updateStatus(VoiceStatus.idle);
     }
+
+    final systemInstruction =
+        '''You are CARE-AI Voice, a warm, empathetic, and professional AI therapist assistant built into the CARE-AI app.
+
+$fullContext
+
+BEHAVIORAL RULES:
+- Respond ONLY with audio. Keep responses UNDER 20 seconds. 
+- Be conversational. Do not use Markdown formatting.
+- Reference the user's actual data when relevant (e.g. "I see you completed your breathing exercise today — great work!")
+- If the user seems distressed based on recent wellness scores, be extra gentle and offer specific coping strategies.
+- If they ask to navigate somewhere, use the function tool to navigate.
+- Current screen context: ${currentScreen ?? 'unknown'}
+''';
+
+    await _liveService.connect(systemInstruction);
+    notifyListeners(); // Safe — called after connect(), not during build
+
+    // Context auto-refresh timer (every 5 mins)
+    _contextRefreshTimer?.cancel();
+    _contextRefreshTimer = Timer.periodic(const Duration(minutes: 5), (
+      _,
+    ) async {
+      if (!isActive || userId == null) return;
+      final refreshedContext = await contextService.buildFullContext(
+        userId: userId,
+        childProfile: childProfile,
+      );
+      _liveService.sendClientContent('Context refresh: $refreshedContext');
+    });
+
+    // FIX: await start() before feeding chunks to avoid race condition
+    _audioSub = _liveService.audioStream.listen((chunk) async {
+      if (!_audioPlayer.isPlaying && !_playerStarting) {
+        _playerStarting = true;
+        await _audioPlayer.start(sampleRate: 24000);
+        _playerStarting = false;
+        _updateStatus(VoiceStatus.speaking);
+      }
+      // Only feed chunk if player is fully ready
+      if (_audioPlayer.isPlaying) {
+        _audioPlayer.addChunk(chunk);
+      }
+    });
+
+    // Start mic ONLY after setupComplete is received from API
+    _msgSub = _liveService.messagesStream.listen((msg) async {
+      if (msg.containsKey('setupComplete')) {
+        AppLogger.info(
+          'VoiceAssistantService',
+          'Setup complete — starting mic',
+        );
+        await _startMicStreaming();
+        _updateStatus(VoiceStatus.listening);
+        return;
+      }
+
+      // In the Gemini Live API, function/tool calls arrive as a SEPARATE
+      // top-level "toolCall" message — NOT inside serverContent.modelTurn.
+      if (msg.containsKey('toolCall')) {
+        final calls = msg['toolCall']['functionCalls'] as List?;
+        if (calls != null) {
+          for (final call in calls) {
+            _handleFunctionCall(call as Map<String, dynamic>);
+          }
+        }
+        return;
+      }
+
+      if (msg.containsKey('serverContent')) {
+        final content = msg['serverContent'];
+
+        // AI finished speaking — reset to listening
+        if (content['turnComplete'] == true) {
+          await _audioPlayer.stop();
+          _updateStatus(VoiceStatus.listening);
+        }
+
+        // AI was interrupted — reset to listening
+        if (content['interrupted'] == true) {
+          await _audioPlayer.stop();
+          _updateStatus(VoiceStatus.listening);
+        }
+      }
+    });
+
+    _logEvent('live_voice_session_started', {});
   }
 
-  /// Stop listening (used in push-to-talk mode).
-  Future<void> stopListening() async {
-    _silenceTimer?.cancel();
-    if (_speech.isListening) {
-      await _speech.stop();
-    }
+  Future<void> _startMicStreaming() async {
+    final stream = await _audioRecorder.startStream(
+      const RecordConfig(
+        encoder: AudioEncoder.pcm16bits,
+        sampleRate: 16000,
+        numChannels: 1,
+      ),
+    );
+
+    _micSub = stream.listen(
+      (data) {
+        _updateWaveform(data);
+        // Gate 1: don't send audio while AI is speaking.
+        // Prevents the AI's own speaker output or ambient noise from
+        // triggering Gemini's VAD and causing unwanted interruptions.
+        if (isSpeaking) return;
+        // Gate 2: RMS energy check — ignore sub-threshold noise chunks
+        // (background hum, fan, AC, TV, etc.) before sending to Gemini.
+        if (!_rmsExceedsThreshold(data)) return;
+        _liveService.sendAudioChunk(data);
+      },
+      onError: (e, stack) {
+        AppLogger.error(
+          'VoiceAssistantService',
+          'Microphone stream error',
+          e,
+          stack,
+        );
+        _setError('Microphone error: hardware disconnected.');
+      },
+    );
   }
 
-  /// Interrupt the AI mid-speech (user starts talking).
+  void _updateWaveform(Uint8List data) {
+    if (data.isEmpty) return;
+    int sum = 0;
+    for (int i = 0; i < data.length - 1; i += 2) {
+      int sample = (data[i + 1] << 8) | data[i];
+      if (sample > 32767) sample -= 65536;
+      sum += sample.abs();
+    }
+    final avg = sum / (data.length / 2);
+    final normalized = (avg / 32768.0).clamp(0.0, 1.0);
+
+    _waveformAmplitudes.add(normalized);
+    if (_waveformAmplitudes.length > 20) {
+      _waveformAmplitudes.removeAt(0);
+    }
+    notifyListeners();
+  }
+
+  /// Returns true when the RMS amplitude of [data] exceeds [_kNoiseFloor].
+  /// Filters out background noise (fans, AC, ambient sound) so only genuine
+  /// speech reaches the Gemini WebSocket.
+  bool _rmsExceedsThreshold(Uint8List data) {
+    if (data.length < 2) return false;
+    final sampleCount = data.length ~/ 2;
+    double sumSq = 0;
+    for (int i = 0; i < sampleCount; i++) {
+      int sample = (data[i * 2 + 1] << 8) | data[i * 2];
+      if (sample > 32767) sample -= 65536;
+      sumSq += sample * sample;
+    }
+    final rms = math.sqrt(sumSq / sampleCount);
+    return rms > _kNoiseFloor;
+  }
+
   Future<void> interruptAI() async {
     if (isSpeaking) {
-      await _ttsService.stop();
-      await startListening();
+      await _audioPlayer.stop();
+      _liveService.sendClientContent("Stop");
+      _updateStatus(VoiceStatus.listening);
     }
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // AI PROCESSING
-  // ═══════════════════════════════════════════════════════════════
+  void _handleFunctionCall(Map<String, dynamic> call) {
+    // Live API format: {"id": "...", "name": "...", "args": {...}}
+    final callId = call['id'] as String? ?? '';
+    final name = call['name'] as String?;
+    final args = (call['args'] as Map?)?.cast<String, dynamic>() ?? {};
 
-  /// Process recognized speech: send to Gemini, speak the response.
-  Future<void> _processUserInput(String text) async {
-    if (text.trim().isEmpty || _session == null) return;
+    String result = 'error';
 
-    _silenceTimer?.cancel();
-    _updateStatus(VoiceStatus.processing);
-    _lastUserText = text;
+    if (name == 'perform_app_action') {
+      final action = args['action'] as String?;
+      final target = args['target'] as String?;
 
-    // Haptic feedback for processing start
-    HapticFeedback.mediumImpact();
+      if (action == 'navigate' && target != null) {
+        final navigated = _navigateToTarget(target);
+        result = navigated ? 'success' : 'unknown_target';
 
-    // Save user message to Firestore
-    try {
-      await _firebaseService.sendChatMessage(ChatMessageModel(
-        id: '',
-        message: text,
-        sender: 'user',
-        timestamp: DateTime.now(),
-      ));
-    } catch (_) {
-      // Non-critical: message save failed, continue with AI response
-    }
-
-    // Get AI response
-    try {
-      final prompt = '$_voiceSystemAddition\n\nUser said: $text';
-      final response = await _aiService.getResponse(prompt)
-          .timeout(const Duration(seconds: 15));
-
-      if (_disposed || _session == null) return;
-
-      _lastAiText = response;
-      _session = _session!.copyWith(
-        messageCount: _session!.messageCount + 1,
-      );
-
-      // Save AI response to Firestore
-      try {
-        await _firebaseService.sendChatMessage(ChatMessageModel(
-          id: '',
-          message: response,
-          sender: 'ai',
-          timestamp: DateTime.now(),
-        ));
-      } catch (_) {
-        // Non-critical
+        if (!navigated) {
+          // Tell Gemini the target wasn't found so it gives a verbal fallback
+          Future.delayed(const Duration(milliseconds: 300), () {
+            _liveService.sendClientContent(
+              'Navigation failed: screen "$target" was not recognised. '
+              'Tell the user the available screens they can go to: '
+              'Home, Chat, Activities, Progress, Daily Plan, Wellness, '
+              'Games, Emergency, Community, Settings, Achievements.',
+            );
+          });
+        }
       }
 
-      // Speak the response
-      _updateStatus(VoiceStatus.speaking);
-      await _ttsService.speak(response);
-
-      // After speaking, decide next action
-      if (_disposed || _session == null) return;
-
-      if (_session!.mode == VoiceMode.continuous) {
-        // Auto-listen again in continuous mode
-        await startListening();
-      } else {
-        _updateStatus(VoiceStatus.idle);
-      }
-    } on TimeoutException {
-      _setError('Response took too long. Please try again.');
-      _updateStatus(VoiceStatus.idle);
-    } catch (e) {
-      debugPrint('AI processing error: $e');
-      _setError('Something went wrong. Please try again.');
-      _updateStatus(VoiceStatus.idle);
+      // Correct Gemini Live API tool-response envelope (requires the call id)
+      _liveService.sendJson({
+        "toolResponse": {
+          "functionResponses": [
+            {
+              "id": callId,
+              "name": "perform_app_action",
+              "response": {"result": result},
+            },
+          ],
+        },
+      });
     }
+  }
 
+  /// Maps a voice-spoken target name to a Flutter route and navigates to it.
+  /// Returns `true` if a matching route was found, `false` if the target is
+  /// unrecognised (so the caller can trigger a verbal fallback).
+  bool _navigateToTarget(String target) {
+    const routeMap = <String, String>{
+      // Home / Dashboard
+      'home': '/home', 'dashboard': '/home', 'main': '/home',
+      'start': '/home', 'overview': '/home',
+      // Chat
+      'chat': '/chat', 'assistant': '/chat', 'ai': '/chat',
+      // Activities / Modules
+      'activities': '/activities', 'activity': '/activities',
+      'modules': '/activities', 'library': '/activities',
+      // Progress
+      'progress': '/progress', 'report': '/progress',
+      'stats': '/progress', 'statistics': '/progress',
+      // Daily plan
+      'daily plan': '/daily-plan', 'dailyplan': '/daily-plan',
+      'plan': '/daily-plan', 'daily': '/daily-plan',
+      'schedule': '/daily-plan', 'tasks': '/daily-plan',
+      // Wellness
+      'wellness': '/wellness', 'wellbeing': '/wellness',
+      'health': '/wellness', 'mood': '/wellness',
+      // Games
+      'games': '/games', 'game': '/games', 'play': '/games',
+      // Emergency
+      'emergency': '/emergency', 'sos': '/emergency',
+      'help': '/emergency', 'crisis': '/emergency',
+      // Community
+      'community': '/community', 'social': '/community',
+      'forum': '/community',
+      // Settings
+      'settings': '/settings', 'preferences': '/settings',
+      'options': '/settings', 'configuration': '/settings',
+      // Achievements
+      'achievements': '/achievements', 'achievement': '/achievements',
+      'badges': '/achievements', 'rewards': '/achievements',
+      // About
+      'about': '/about',
+    };
+
+    final route = routeMap[target.toLowerCase().trim()];
+    if (route == null) return false;
+
+    navigatorKey.currentState?.pushNamedAndRemoveUntil(
+      route,
+      (r) => r.isFirst,
+    );
+    AppLogger.info('VoiceAssistantService', 'Navigated to $route');
+    return true;
+  }
+
+  Future<void> stopSession() async {
+    _playerStarting = false;
+    _contextRefreshTimer?.cancel();
+    _micSub?.cancel();
+    await _audioRecorder.stop();
+    _liveService.disconnect();
+    _audioSub?.cancel();
+    _msgSub?.cancel();
+    await _audioPlayer.stop();
+
+    _waveformAmplitudes.clear();
+    _session = null;
+    _errorMessage = null;
     notifyListeners();
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // ERROR HANDLING
-  // ═══════════════════════════════════════════════════════════════
-
   void _setError(String message) {
+    AppLogger.error('VoiceAssistantService', 'Session Error: $message');
     _errorMessage = message;
     if (_session != null) {
       _session = _session!.copyWith(
@@ -385,97 +411,33 @@ VOICE MODE RULES (in addition to base rules):
     notifyListeners();
   }
 
-  void _handleSttError(String errorMsg) {
-    debugPrint('STT error: $errorMsg');
-
-    if (errorMsg.contains('error_no_match') ||
-        errorMsg.contains('error_speech_timeout')) {
-      // Silence — not a real error in push-to-talk mode
-      if (_session?.mode == VoiceMode.pushToTalk) {
-        _updateStatus(VoiceStatus.idle);
-      } else {
-        // In continuous mode, try listening again
-        startListening();
-      }
-      return;
-    }
-
-    if (errorMsg.contains('error_permission')) {
-      _setError('Microphone permission denied. Please enable it in Settings.');
-      return;
-    }
-
-    if (errorMsg.contains('error_audio') ||
-        errorMsg.contains('error_server')) {
-      _setError('Audio error. Please check your microphone.');
-      _updateStatus(VoiceStatus.idle);
-      return;
-    }
-
-    // Generic error
-    _updateStatus(VoiceStatus.idle);
-  }
-
-  void _handleSttStatus(String status) {
-    if (status == 'notListening' && _session != null) {
-      if (_session!.status == VoiceStatus.listening) {
-        // STT stopped on its own (timeout)
-        if (_session!.mode == VoiceMode.continuous &&
-            _lastUserText.isEmpty) {
-          // No speech detected, try again
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (!_disposed && _session?.mode == VoiceMode.continuous) {
-              startListening();
-            }
-          });
-        }
-      }
-    }
-  }
-
-  // ═══════════════════════════════════════════════════════════════
-  // HELPERS
-  // ═══════════════════════════════════════════════════════════════
-
   void _updateStatus(VoiceStatus status) {
     if (_session == null) return;
     _session = _session!.copyWith(status: status);
     notifyListeners();
   }
 
-  void _resetSilenceTimer() {
-    _silenceTimer?.cancel();
-    if (_session?.mode == VoiceMode.continuous) {
-      _silenceTimer = Timer(const Duration(seconds: 15), () {
-        if (isListening && _lastUserText.isEmpty) {
-          // Still here? Pause after prolonged silence
-          pauseSession();
-          _setError("Still there? Tap the mic when you're ready.");
-        }
-      });
-    }
-  }
-
   void _logEvent(String eventType, Map<String, dynamic> metadata) {
     try {
-      _firebaseService.saveUserEvent(UserEventModel(
-        eventType: eventType,
-        screenName: 'voice_assistant',
-        metadata: metadata,
-        timestamp: DateTime.now(),
-      ));
-    } catch (_) {
-      // Non-critical
-    }
+      _firebaseService.saveUserEvent(
+        UserEventModel(
+          eventType: eventType,
+          screenName: 'voice_assistant_live',
+          metadata: metadata,
+          timestamp: DateTime.now(),
+        ),
+      );
+    } catch (_) {}
   }
 
   @override
   void dispose() {
-    _disposed = true;
-    _silenceTimer?.cancel();
+    _contextRefreshTimer?.cancel();
     _connectivitySub?.cancel();
-    _speech.stop();
-    _ttsService.dispose();
+    stopSession();
+    _liveService.dispose();
+    _audioPlayer.dispose();
+    _audioRecorder.dispose();
     super.dispose();
   }
 }

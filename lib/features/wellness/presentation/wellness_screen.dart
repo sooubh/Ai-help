@@ -50,37 +50,43 @@ class _WellnessScreenState extends State<WellnessScreen> {
     {
       'icon': Icons.bedtime_rounded,
       'title': 'Prioritize Sleep',
-      'tip': 'Even 15 extra minutes of sleep can improve your patience and energy. Try a consistent bedtime routine for yourself.',
+      'tip':
+          'Even 15 extra minutes of sleep can improve your patience and energy. Try a consistent bedtime routine for yourself.',
       'color': Color(0xFF6366F1),
     },
     {
       'icon': Icons.directions_walk_rounded,
       'title': 'Move Your Body',
-      'tip': 'A short 10-minute walk can reduce stress hormones. Walk with your child or take a solo break outdoors.',
+      'tip':
+          'A short 10-minute walk can reduce stress hormones. Walk with your child or take a solo break outdoors.',
       'color': Color(0xFF10B981),
     },
     {
       'icon': Icons.people_rounded,
       'title': 'Stay Connected',
-      'tip': 'Reach out to a friend, join a support group, or chat with other parents. You are not alone in this journey.',
+      'tip':
+          'Reach out to a friend, join a support group, or chat with other parents. You are not alone in this journey.',
       'color': Color(0xFFF59E0B),
     },
     {
       'icon': Icons.spa_rounded,
       'title': 'Daily Pause',
-      'tip': 'Take 5 minutes to sit quietly, breathe deeply, or enjoy a cup of tea. Small pauses recharge your emotional battery.',
+      'tip':
+          'Take 5 minutes to sit quietly, breathe deeply, or enjoy a cup of tea. Small pauses recharge your emotional battery.',
       'color': Color(0xFFEC4899),
     },
     {
       'icon': Icons.auto_stories_rounded,
       'title': 'Journal It Out',
-      'tip': 'Write down one good thing from today and one challenge. Journaling helps process emotions and track progress.',
+      'tip':
+          'Write down one good thing from today and one challenge. Journaling helps process emotions and track progress.',
       'color': Color(0xFF8B5CF6),
     },
     {
       'icon': Icons.music_note_rounded,
       'title': 'Music Therapy',
-      'tip': 'Put on your favorite song during a stressful moment. Music activates calming brain circuits in seconds.',
+      'tip':
+          'Put on your favorite song during a stressful moment. Music activates calming brain circuits in seconds.',
       'color': Color(0xFF06B6D4),
     },
   ];
@@ -168,8 +174,8 @@ class _WellnessScreenState extends State<WellnessScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final affirmation = _affirmations[
-        DateTime.now().day % _affirmations.length];
+    final affirmation =
+        _affirmations[DateTime.now().day % _affirmations.length];
 
     return Scaffold(
       appBar: AppBar(title: const Text('Parent Wellness')),
@@ -209,9 +215,9 @@ class _WellnessScreenState extends State<WellnessScreen> {
   Widget _sectionTitle(BuildContext context, String title) {
     return Text(
       title,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
     ).animate().fadeIn(duration: 300.ms);
   }
 
@@ -220,132 +226,140 @@ class _WellnessScreenState extends State<WellnessScreen> {
   // ═════════════════════════════════════════════════════════
   Widget _buildMoodCheckIn(BuildContext context, bool isDark) {
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF5B6EF5), Color(0xFFA855F7)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF5B6EF5).withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.favorite_rounded, color: Colors.white, size: 22),
-              SizedBox(width: 8),
-              Text(
-                'How are you feeling today?',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                ),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF5B6EF5), Color(0xFFA855F7)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF5B6EF5).withValues(alpha: 0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: _moods.asMap().entries.map((entry) {
-              final index = entry.key;
-              final mood = entry.value;
-              final isSelected = _selectedMood == index;
-              return GestureDetector(
-                onTap: () => _saveMood(index),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? Colors.white.withValues(alpha: 0.3)
-                        : Colors.white.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isSelected
-                          ? Colors.white
-                          : Colors.white.withValues(alpha: 0.2),
-                      width: isSelected ? 2 : 1,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.favorite_rounded, color: Colors.white, size: 22),
+                  SizedBox(width: 8),
+                  Text(
+                    'How are you feeling today?',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  child: Column(
-                    children: [
-                      Text(
-                        mood['emoji']!,
-                        style: TextStyle(fontSize: isSelected ? 30 : 26),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        mood['label']!,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight:
-                              isSelected ? FontWeight.w700 : FontWeight.w400,
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children:
+                    _moods.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final mood = entry.value;
+                      final isSelected = _selectedMood == index;
+                      return GestureDetector(
+                        onTap: () => _saveMood(index),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color:
+                                isSelected
+                                    ? Colors.white.withValues(alpha: 0.3)
+                                    : Colors.white.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color:
+                                  isSelected
+                                      ? Colors.white
+                                      : Colors.white.withValues(alpha: 0.2),
+                              width: isSelected ? 2 : 1,
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                mood['emoji']!,
+                                style: TextStyle(
+                                  fontSize: isSelected ? 30 : 26,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                mood['label']!,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight:
+                                      isSelected
+                                          ? FontWeight.w700
+                                          : FontWeight.w400,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          if (_selectedMood != null) ...[
-            const SizedBox(height: 12),
-            Center(
-              child: Text(
-                _selectedMood! <= 1
-                    ? '💙 Wonderful! Keep up the positive energy!'
-                    : _selectedMood == 2
+                      );
+                    }).toList(),
+              ),
+              if (_selectedMood != null) ...[
+                const SizedBox(height: 12),
+                Center(
+                  child: Text(
+                    _selectedMood! <= 1
+                        ? '💙 Wonderful! Keep up the positive energy!'
+                        : _selectedMood == 2
                         ? '💙 That\'s perfectly okay. You\'re doing great.'
                         : '💙 Remember: tough days don\'t last, but tough parents do.',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ],
-        ],
-      ),
-    ).animate().fadeIn(duration: 500.ms).slideY(
-          begin: 0.05,
-          duration: 500.ms,
-          curve: Curves.easeOutCubic,
-        );
+              ],
+            ],
+          ),
+        )
+        .animate()
+        .fadeIn(duration: 500.ms)
+        .slideY(begin: 0.05, duration: 500.ms, curve: Curves.easeOutCubic);
   }
 
   // ═════════════════════════════════════════════════════════
   // DAILY AFFIRMATION
   // ═════════════════════════════════════════════════════════
   Widget _buildAffirmation(
-      BuildContext context, bool isDark, String affirmation) {
+    BuildContext context,
+    bool isDark,
+    String affirmation,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: isDark
-              ? [const Color(0xFF1E2140), const Color(0xFF2D3154)]
-              : [const Color(0xFFFFF7ED), const Color(0xFFFEF3C7)],
+          colors:
+              isDark
+                  ? [const Color(0xFF1E2140), const Color(0xFF2D3154)]
+                  : [const Color(0xFFFFF7ED), const Color(0xFFFEF3C7)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.gold.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -354,10 +368,10 @@ class _WellnessScreenState extends State<WellnessScreen> {
           Text(
             affirmation,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  height: 1.6,
-                  fontStyle: FontStyle.italic,
-                ),
+              fontWeight: FontWeight.w600,
+              height: 1.6,
+              fontStyle: FontStyle.italic,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
@@ -375,9 +389,7 @@ class _WellnessScreenState extends State<WellnessScreen> {
             label: const Text('Copy & Share'),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.gold,
-              side: BorderSide(
-                color: AppColors.gold.withValues(alpha: 0.5),
-              ),
+              side: BorderSide(color: AppColors.gold.withValues(alpha: 0.5)),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -395,22 +407,22 @@ class _WellnessScreenState extends State<WellnessScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: isDark
-            ? AppColors.darkCardBackground
-            : AppColors.cardBackground,
+        color: isDark ? AppColors.darkCardBackground : AppColors.cardBackground,
         borderRadius: BorderRadius.circular(20),
-        border: isDark
-            ? Border.all(color: AppColors.darkBorder.withValues(alpha: 0.3))
-            : null,
-        boxShadow: isDark
-            ? []
-            : [
-                BoxShadow(
-                  color: AppColors.accent.withValues(alpha: 0.08),
-                  blurRadius: 20,
-                  offset: const Offset(0, 6),
-                ),
-              ],
+        border:
+            isDark
+                ? Border.all(color: AppColors.darkBorder.withValues(alpha: 0.3))
+                : null,
+        boxShadow:
+            isDark
+                ? []
+                : [
+                  BoxShadow(
+                    color: AppColors.accent.withValues(alpha: 0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
       ),
       child: Column(
         children: [
@@ -423,8 +435,11 @@ class _WellnessScreenState extends State<WellnessScreen> {
                   color: AppColors.accent.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(Icons.air_rounded,
-                    color: AppColors.accent, size: 24),
+                child: const Icon(
+                  Icons.air_rounded,
+                  color: AppColors.accent,
+                  size: 24,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -433,10 +448,9 @@ class _WellnessScreenState extends State<WellnessScreen> {
                   children: [
                     Text(
                       '4-4-4 Breathing',
-                      style:
-                          Theme.of(context).textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     Text(
                       '5 cycles • Reduces stress in 60 seconds',
@@ -452,40 +466,38 @@ class _WellnessScreenState extends State<WellnessScreen> {
           // Breathing circle
           AnimatedContainer(
             duration: const Duration(milliseconds: 600),
-            width: _isBreathing
-                ? (_breathLabel.contains('In') ? 120 : 80)
-                : 100,
-            height: _isBreathing
-                ? (_breathLabel.contains('In') ? 120 : 80)
-                : 100,
+            width:
+                _isBreathing ? (_breathLabel.contains('In') ? 120 : 80) : 100,
+            height:
+                _isBreathing ? (_breathLabel.contains('In') ? 120 : 80) : 100,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: LinearGradient(
                 colors: [
-                  AppColors.accent.withValues(
-                      alpha: _isBreathing ? 0.6 : 0.2),
-                  AppColors.primary.withValues(
-                      alpha: _isBreathing ? 0.4 : 0.1),
+                  AppColors.accent.withValues(alpha: _isBreathing ? 0.6 : 0.2),
+                  AppColors.primary.withValues(alpha: _isBreathing ? 0.4 : 0.1),
                 ],
               ),
-              boxShadow: _isBreathing
-                  ? [
-                      BoxShadow(
-                        color: AppColors.accent.withValues(alpha: 0.3),
-                        blurRadius: 30,
-                      ),
-                    ]
-                  : [],
+              boxShadow:
+                  _isBreathing
+                      ? [
+                        BoxShadow(
+                          color: AppColors.accent.withValues(alpha: 0.3),
+                          blurRadius: 30,
+                        ),
+                      ]
+                      : [],
             ),
             child: Center(
               child: Text(
                 _breathLabel,
                 style: TextStyle(
-                  color: _isBreathing
-                      ? Colors.white
-                      : (isDark
-                          ? AppColors.darkTextSecondary
-                          : AppColors.textSecondary),
+                  color:
+                      _isBreathing
+                          ? Colors.white
+                          : (isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.textSecondary),
                   fontSize: _isBreathing ? 14 : 15,
                   fontWeight: FontWeight.w600,
                 ),
@@ -499,9 +511,9 @@ class _WellnessScreenState extends State<WellnessScreen> {
             Text(
               'Cycle ${_breathCycle + 1} of 5',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.accent,
-                    fontWeight: FontWeight.w600,
-                  ),
+                color: AppColors.accent,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
 
@@ -548,22 +560,22 @@ class _WellnessScreenState extends State<WellnessScreen> {
             width: 220,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: isDark
-                  ? AppColors.darkCardBackground
-                  : AppColors.cardBackground,
+              color:
+                  isDark
+                      ? AppColors.darkCardBackground
+                      : AppColors.cardBackground,
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: color.withValues(alpha: 0.2),
-              ),
-              boxShadow: isDark
-                  ? []
-                  : [
-                      BoxShadow(
-                        color: color.withValues(alpha: 0.08),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+              border: Border.all(color: color.withValues(alpha: 0.2)),
+              boxShadow:
+                  isDark
+                      ? []
+                      : [
+                        BoxShadow(
+                          color: color.withValues(alpha: 0.08),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -575,24 +587,22 @@ class _WellnessScreenState extends State<WellnessScreen> {
                     color: color.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(tip['icon'] as IconData,
-                      color: color, size: 22),
+                  child: Icon(tip['icon'] as IconData, color: color, size: 22),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   tip['title'] as String,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 4),
                 Expanded(
                   child: Text(
                     tip['tip'] as String,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontSize: 11,
-                          height: 1.4,
-                        ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(fontSize: 11, height: 1.4),
                     maxLines: 4,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -600,9 +610,9 @@ class _WellnessScreenState extends State<WellnessScreen> {
               ],
             ),
           ).animate().fadeIn(
-                delay: Duration(milliseconds: 100 * index),
-                duration: 400.ms,
-              );
+            delay: Duration(milliseconds: 100 * index),
+            duration: 400.ms,
+          );
         },
       ),
     );
@@ -644,73 +654,78 @@ class _WellnessScreenState extends State<WellnessScreen> {
     ];
 
     return Column(
-      children: resources.asMap().entries.map((entry) {
-        final index = entry.key;
-        final resource = entry.value;
-        final color = resource['color'] as Color;
+      children:
+          resources.asMap().entries.map((entry) {
+            final index = entry.key;
+            final resource = entry.value;
+            final color = resource['color'] as Color;
 
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isDark
-                ? AppColors.darkCardBackground
-                : AppColors.cardBackground,
-            borderRadius: BorderRadius.circular(16),
-            border: isDark
-                ? Border.all(
-                    color: AppColors.darkBorder.withValues(alpha: 0.2))
-                : null,
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(resource['icon'] as IconData,
-                    color: color, size: 22),
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color:
+                    isDark
+                        ? AppColors.darkCardBackground
+                        : AppColors.cardBackground,
+                borderRadius: BorderRadius.circular(16),
+                border:
+                    isDark
+                        ? Border.all(
+                          color: AppColors.darkBorder.withValues(alpha: 0.2),
+                        )
+                        : null,
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      resource['title'] as String,
-                      style:
-                          Theme.of(context).textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    Text(
-                      resource['info'] as String,
-                      style:
-                          Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: color,
-                                fontWeight: FontWeight.w500,
-                              ),
+                    child: Icon(
+                      resource['icon'] as IconData,
+                      color: color,
+                      size: 22,
                     ),
-                    Text(
-                      resource['detail'] as String,
-                      style:
-                          Theme.of(context).textTheme.bodySmall?.copyWith(
-                                fontSize: 11,
-                              ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          resource['title'] as String,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          resource['info'] as String,
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodySmall?.copyWith(
+                            color: color,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          resource['detail'] as String,
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodySmall?.copyWith(fontSize: 11),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ).animate().fadeIn(
+            ).animate().fadeIn(
               delay: Duration(milliseconds: 100 * index),
               duration: 400.ms,
             );
-      }).toList(),
+          }).toList(),
     );
   }
 }

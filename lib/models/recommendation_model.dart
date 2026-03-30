@@ -19,11 +19,15 @@ class RecommendationModel {
     required this.reason,
     DateTime? createdAt,
     DateTime? expiresAt,
-  })  : id = id ?? const Uuid().v4(),
-        createdAt = createdAt ?? DateTime.now(),
-        expiresAt = expiresAt ??
-            DateTime(DateTime.now().year, DateTime.now().month,
-                DateTime.now().day + 1);
+  }) : id = id ?? const Uuid().v4(),
+       createdAt = createdAt ?? DateTime.now(),
+       expiresAt =
+           expiresAt ??
+           DateTime(
+             DateTime.now().year,
+             DateTime.now().month,
+             DateTime.now().day + 1,
+           );
 
   Map<String, dynamic> toMap() {
     return {
@@ -44,12 +48,14 @@ class RecommendationModel {
       duration: map['duration'] ?? '',
       objective: map['objective'] ?? '',
       reason: map['reason'] ?? '',
-      createdAt: map['createdAt'] != null
-          ? (map['createdAt'] as Timestamp).toDate()
-          : DateTime.now(),
-      expiresAt: map['expiresAt'] != null
-          ? (map['expiresAt'] as Timestamp).toDate()
-          : DateTime.now(),
+      createdAt:
+          map['createdAt'] != null
+              ? (map['createdAt'] as Timestamp).toDate()
+              : DateTime.now(),
+      expiresAt:
+          map['expiresAt'] != null
+              ? (map['expiresAt'] as Timestamp).toDate()
+              : DateTime.now(),
     );
   }
 

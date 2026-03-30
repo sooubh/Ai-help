@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../core/config/env_config.dart';
+import '../core/utils/app_logger.dart';
 import '../models/child_profile_model.dart';
 import '../models/recommendation_model.dart';
 
@@ -15,13 +17,12 @@ class AiService {
   GenerativeModel? _model;
   ChatSession? _chatSession;
 
-  static const String _modelName = 'gemini-2.0-flash';
+  static const String _modelName = 'gemini-2.5-flash';
 
-  /// System instruction that frames CARE-AI's behavior.
   static const String _baseSystemPrompt = '''
-You are CARE-AI, an empathetic AI parenting companion for children with developmental or physical disabilities.
+You are CARE-AI, an empathetic, highly-intelligent AI parenting companion for children with developmental or physical disabilities.
 
-RULES:
+RULES FOR BEHAVIOR & FORMATTING:
 1. You are NOT a doctor. NEVER provide medical diagnoses or prescribe treatments.
 2. Always encourage consulting qualified professionals for medical concerns.
 3. Provide evidence-based, supportive parenting guidance.
@@ -29,21 +30,27 @@ RULES:
 5. Offer practical, actionable advice for daily challenges.
 6. Celebrate small wins and progress.
 7. Support parents' emotional well-being — they are doing important work.
-8. When discussing therapy activities, use step-by-step instructions.
-9. Tailor your language to be simple and accessible.
+8. FORMATTING: You MUST use Markdown extensively to make your responses extremely easy to read. Use **bolding** for emphasis, bulleted or numbered lists for steps, and `### Headers` to break up long thoughts.
+9. Tailor your language to be simple, accessible, and structured.
 10. If asked about emergencies or safety concerns, advise immediate professional help.
+11. NAVIGATION: You have the ability to navigate the user around the app using the `perform_app_action` tool. If the user asks you to open the daily plan, the games, the community, their progress, etc., you MUST use the tool. Provide a warm spoken `message` confirming you are taking them there.
+12. MEDIA ANALYSIS: When the user uploads images or videos, you must natively analyze the visual elements. Start with a brief summary of what you see, and then break down the key details contextually related to parenting, safety, emotions, or development.
 
-DISCLAIMER: Always remind users that your guidance supplements but does not replace professional medical advice.
+DISCLAIMER: Always playfully and gently remind users that your guidance supplements but does not replace professional medical advice.
 ''';
 
   /// Initialize the Gemini model. Call once at app start.
   void initialize() {
+    debugPrint('Initializing AiService...');
+    debugPrint('EnvConfig.hasGeminiKey: \${EnvConfig.hasGeminiKey}');
+    debugPrint('EnvConfig.geminiApiKey length: \${EnvConfig.geminiApiKey.length}');
+
     if (!EnvConfig.hasGeminiKey) {
-      // ignore: avoid_print
-      print('⚠️ Gemini API key not configured. AI features will use fallback.');
+      debugPrint('⚠️ Gemini API key not configured. AI features will use fallback.');
       return;
     }
 
+    debugPrint('Gemini API Key found. Initializing GenerativeModel...');
     _model = GenerativeModel(
       model: _modelName,
       apiKey: EnvConfig.geminiApiKey,
@@ -57,22 +64,57 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
       safetySettings: [
         SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium),
         SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.medium),
-        SafetySetting(
-            HarmCategory.sexuallyExplicit, HarmBlockThreshold.high),
+        SafetySetting(HarmCategory.sexuallyExplicit, HarmBlockThreshold.high),
         SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.medium),
       ],
+      tools: [
+        Tool(
+          functionDeclarations: [
+            FunctionDeclaration(
+              'perform_app_action',
+              'Navigate to different sections of the app or perform specific tasks.',
+              Schema(
+                SchemaType.object,
+                properties: {
+                  'action': Schema(
+                    SchemaType.string,
+                    description: 'The type of action. Usually "navigate".',
+                  ),
+                  'target': Schema(
+                    SchemaType.string,
+                    description:
+                        'The target destination. Allowed values: home, dashboard, wellness, daily_plan, games, emergency, settings, progress, community, activities.',
+                  ),
+                  'message': Schema(
+                    SchemaType.string,
+                    description:
+                        'A brief verbal confirmation to speak to the user before navigating (e.g., "Taking you to the games hub.").',
+                  ),
+                },
+                requiredProperties: ['action', 'target', 'message'],
+              ),
+            ),
+          ],
+        ),
+      ],
     );
+    debugPrint('GenerativeModel initialized successfully.');
   }
 
   /// Start a new chat session with child profile context.
-  void startChatSession({ChildProfileModel? childProfile}) {
+  void startChatSession({ChildProfileModel? childProfile, String? fullContext}) {
     if (_model == null) return;
 
-    final contextPrompt = _buildChildContext(childProfile);
+    final contextPrompt = (fullContext != null && fullContext.isNotEmpty) 
+        ? fullContext 
+        : _buildChildContext(childProfile);
 
     _chatSession = _model!.startChat(
       history: [
-        if (contextPrompt.isNotEmpty) Content.text(contextPrompt),
+        if (contextPrompt.isNotEmpty) Content.text('Here is the holistic user context:\n$contextPrompt'),
+        Content.text(
+          'Remember: If the user asks you to open a page, go to a section, or navigate, you MUST use the perform_app_action function.',
+        ),
       ],
     );
   }
@@ -80,40 +122,76 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
   /// Send a message and get a response.
   /// Returns the AI response text, or a fallback if API is unavailable.
   Future<String> getResponse(String userMessage) async {
-    if (_chatSession == null || _model == null) {
+    if (_model == null) {
+      return _getFallbackResponse(userMessage);
+    }
+
+    if (_chatSession == null) {
+      startChatSession();
+    }
+
+    if (_chatSession == null) {
       return _getFallbackResponse(userMessage);
     }
 
     try {
-      final response = await _chatSession!.sendMessage(
-        Content.text(userMessage),
-      );
+      final response = await _chatSession!
+          .sendMessage(Content.text(userMessage))
+          .timeout(const Duration(seconds: 15));
 
       final text = response.text;
       if (text == null || text.isEmpty) {
+        AppLogger.warning(
+          'AiService.getResponse',
+          'Received empty text from Gemini. Using gentle prompt.',
+        );
         return 'I understand your question. Could you please provide more details so I can give you better guidance?';
       }
       return text;
-    } catch (e) {
-      // ignore: avoid_print
-      print('Gemini API error: \$e');
+    } catch (e, stack) {
+      AppLogger.error(
+        'AiService.getResponse',
+        'Gemini API call failed',
+        e,
+        stack,
+      );
       return _getFallbackResponse(userMessage);
     }
   }
 
   /// Send a message and stream the response token by token.
-  Stream<String> getStreamingResponse(String userMessage) async* {
+  Stream<String> getStreamingResponse(String userMessage, {List<Uint8List>? imageBytesList}) async* {
     if (_model == null) {
       yield _getFallbackResponse(userMessage);
       return;
     }
 
     try {
+      final contentParts = <Part>[TextPart(userMessage)];
+      if (imageBytesList != null) {
+        for (final bytes in imageBytesList) {
+          contentParts.add(DataPart('image/jpeg', bytes));
+        }
+      }
+
       final response = _model!.generateContentStream([
-        Content.text(userMessage),
+        Content.multi(contentParts),
       ]);
 
       await for (final chunk in response) {
+        if (chunk.functionCalls.isNotEmpty) {
+          final call = chunk.functionCalls.first;
+          if (call.name == 'perform_app_action') {
+            final serialized = jsonEncode({
+              '__is_function_call__': true,
+              'name': call.name,
+              'args': call.args,
+            });
+            yield serialized;
+            continue;
+          }
+        }
+
         final text = chunk.text;
         if (text != null && text.isNotEmpty) {
           yield text;
@@ -125,7 +203,9 @@ DISCLAIMER: Always remind users that your guidance supplements but does not repl
   }
 
   /// Generate personalized recommendations based on child profile.
-  Future<List<RecommendationModel>> getRecommendations(ChildProfileModel profile) async {
+  Future<List<RecommendationModel>> getRecommendations(
+    ChildProfileModel profile,
+  ) async {
     if (_model == null) {
       return _getDefaultRecommendations(profile);
     }
@@ -152,22 +232,31 @@ Each object must have exactly these keys:
 ''';
 
     try {
-      final response = await _model!.generateContent([Content.text(prompt)]);
-      
+      final response = await _model!
+          .generateContent([Content.text(prompt)])
+          .timeout(const Duration(seconds: 20));
+
       String jsonStr = response.text?.trim() ?? '';
-      
+
       // Cleanup markdown artifacts if present
       if (jsonStr.startsWith('```json')) {
-        jsonStr = jsonStr.replaceAll('```json', '').replaceAll('```', '').trim();
+        jsonStr =
+            jsonStr.replaceAll('```json', '').replaceAll('```', '').trim();
       } else if (jsonStr.startsWith('```')) {
         jsonStr = jsonStr.replaceAll('```', '').trim();
       }
 
       final List<dynamic> parsed = json.decode(jsonStr);
-      return parsed.map((e) => RecommendationModel.fromMap(e as Map<String, dynamic>)).toList();
-    } catch (e) {
-      // ignore: avoid_print
-      print('Failed to parse AI recommendations: \$e');
+      return parsed
+          .map((e) => RecommendationModel.fromMap(e as Map<String, dynamic>))
+          .toList();
+    } catch (e, stack) {
+      AppLogger.error(
+        'AiService.getRecommendations',
+        'Failed to generate recommendations',
+        e,
+        stack,
+      );
       return _getDefaultRecommendations(profile);
     }
   }
@@ -243,7 +332,9 @@ Tailor all advice and activities to this child's specific needs and abilities.
   }
 
   /// Default recommendations when AI is unavailable.
-  List<RecommendationModel> _getDefaultRecommendations(ChildProfileModel profile) {
+  List<RecommendationModel> _getDefaultRecommendations(
+    ChildProfileModel profile,
+  ) {
     return [
       RecommendationModel(
         title: 'Sensory Play Time',

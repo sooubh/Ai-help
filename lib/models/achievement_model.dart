@@ -18,16 +18,21 @@ class AchievementModel {
     this.unlockedAt,
   });
 
-  factory AchievementModel.fromMap(Map<String, dynamic> map, String id, {required IconData iconData}) {
+  factory AchievementModel.fromMap(
+    Map<String, dynamic> map,
+    String id, {
+    required IconData iconData,
+  }) {
     return AchievementModel(
       id: id,
       title: map['title'] ?? '',
       description: map['description'] ?? '',
       iconData: iconData,
       isUnlocked: map['isUnlocked'] ?? false,
-      unlockedAt: map['unlockedAt'] != null 
-          ? DateTime.fromMillisecondsSinceEpoch(map['unlockedAt']) 
-          : null,
+      unlockedAt:
+          map['unlockedAt'] != null
+              ? DateTime.fromMillisecondsSinceEpoch(map['unlockedAt'])
+              : null,
     );
   }
 

@@ -39,7 +39,8 @@ class ActivityLogModel {
       category: map['category'] ?? '',
       durationSeconds: map['durationSeconds'] ?? 0,
       stepsCompleted: map['stepsCompleted'] ?? 0,
-      completedAt: (map['completedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      completedAt:
+          (map['completedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 }

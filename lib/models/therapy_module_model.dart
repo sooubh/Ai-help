@@ -23,6 +23,12 @@ class TherapyModuleModel {
   final String? iconName;
   final DateTime createdAt;
 
+  // ── Adaptive therapy fields ──
+  final String activityType; // 'interactive', 'guided', 'video', 'game'
+  final List<String> targetSkills; // e.g., ['eye_contact', 'turn_taking']
+  final List<String> prerequisites; // module IDs that should be completed first
+  final bool adaptiveDifficultyEnabled;
+
   TherapyModuleModel({
     required this.id,
     required this.title,
@@ -40,6 +46,10 @@ class TherapyModuleModel {
     this.isExpertApproved = false,
     this.mediaUrls = const [],
     this.iconName,
+    this.activityType = 'interactive',
+    this.targetSkills = const [],
+    this.prerequisites = const [],
+    this.adaptiveDifficultyEnabled = true,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -61,8 +71,11 @@ class TherapyModuleModel {
       isExpertApproved: map['isExpertApproved'] ?? false,
       mediaUrls: List<String>.from(map['mediaUrls'] ?? []),
       iconName: map['iconName'],
-      createdAt:
-          (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      activityType: map['activityType'] ?? 'interactive',
+      targetSkills: List<String>.from(map['targetSkills'] ?? []),
+      prerequisites: List<String>.from(map['prerequisites'] ?? []),
+      adaptiveDifficultyEnabled: map['adaptiveDifficultyEnabled'] ?? true,
+      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
@@ -83,6 +96,10 @@ class TherapyModuleModel {
       'isExpertApproved': isExpertApproved,
       'mediaUrls': mediaUrls,
       'iconName': iconName,
+      'activityType': activityType,
+      'targetSkills': targetSkills,
+      'prerequisites': prerequisites,
+      'adaptiveDifficultyEnabled': adaptiveDifficultyEnabled,
       'createdAt': Timestamp.fromDate(createdAt),
     };
   }

@@ -77,14 +77,16 @@ class _ActivityTimerScreenState extends State<ActivityTimerScreen> {
 
     // Log activity to Firestore
     final elapsed = _totalSeconds - _remainingSeconds;
-    FirebaseService().logActivity(ActivityLogModel(
-      activityId: widget.module.id,
-      activityTitle: widget.module.title,
-      category: widget.module.skillCategory,
-      durationSeconds: elapsed,
-      stepsCompleted: _currentStep + 1,
-      completedAt: DateTime.now(),
-    ));
+    FirebaseService().logActivity(
+      ActivityLogModel(
+        activityId: widget.module.id,
+        activityTitle: widget.module.title,
+        category: widget.module.skillCategory,
+        durationSeconds: elapsed,
+        stepsCompleted: _currentStep + 1,
+        completedAt: DateTime.now(),
+      ),
+    );
   }
 
   String _formatTime(int seconds) {
@@ -112,9 +114,8 @@ class _ActivityTimerScreenState extends State<ActivityTimerScreen> {
             ),
         ],
       ),
-      body: _isCompleted
-          ? _buildCompletedView(isDark)
-          : _buildTimerView(isDark),
+      body:
+          _isCompleted ? _buildCompletedView(isDark) : _buildTimerView(isDark),
     );
   }
 
@@ -139,12 +140,14 @@ class _ActivityTimerScreenState extends State<ActivityTimerScreen> {
                     value: _progress,
                     strokeWidth: 10,
                     strokeCap: StrokeCap.round,
-                    backgroundColor: isDark
-                        ? AppColors.darkSurfaceVariant
-                        : AppColors.surfaceVariant,
-                    color: _remainingSeconds < 60
-                        ? AppColors.warning
-                        : AppColors.accent,
+                    backgroundColor:
+                        isDark
+                            ? AppColors.darkSurfaceVariant
+                            : AppColors.surfaceVariant,
+                    color:
+                        _remainingSeconds < 60
+                            ? AppColors.warning
+                            : AppColors.accent,
                   ),
                 ),
                 Column(
@@ -152,13 +155,12 @@ class _ActivityTimerScreenState extends State<ActivityTimerScreen> {
                   children: [
                     Text(
                       _formatTime(_remainingSeconds),
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineLarge
-                          ?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            fontFamily: 'monospace',
-                          ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.headlineLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'monospace',
+                      ),
                     ),
                     Text(
                       '${widget.module.durationMinutes} min activity',
@@ -180,14 +182,16 @@ class _ActivityTimerScreenState extends State<ActivityTimerScreen> {
                 ElevatedButton.icon(
                   onPressed: _startTimer,
                   icon: const Icon(Icons.play_arrow_rounded),
-                  label: Text(_remainingSeconds == _totalSeconds
-                      ? 'Start'
-                      : 'Resume'),
+                  label: Text(
+                    _remainingSeconds == _totalSeconds ? 'Start' : 'Resume',
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accent,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 32, vertical: 14),
+                      horizontal: 32,
+                      vertical: 14,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -203,7 +207,9 @@ class _ActivityTimerScreenState extends State<ActivityTimerScreen> {
                     backgroundColor: AppColors.warning,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 32, vertical: 14),
+                      horizontal: 32,
+                      vertical: 14,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -219,7 +225,9 @@ class _ActivityTimerScreenState extends State<ActivityTimerScreen> {
                   foregroundColor: AppColors.success,
                   side: const BorderSide(color: AppColors.success),
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 24, vertical: 14),
+                    horizontal: 24,
+                    vertical: 14,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -235,14 +243,17 @@ class _ActivityTimerScreenState extends State<ActivityTimerScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: isDark
-                  ? AppColors.darkCardBackground
-                  : AppColors.cardBackground,
+              color:
+                  isDark
+                      ? AppColors.darkCardBackground
+                      : AppColors.cardBackground,
               borderRadius: BorderRadius.circular(20),
-              border: isDark
-                  ? Border.all(
-                      color: AppColors.darkBorder.withValues(alpha: 0.3))
-                  : null,
+              border:
+                  isDark
+                      ? Border.all(
+                        color: AppColors.darkBorder.withValues(alpha: 0.3),
+                      )
+                      : null,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -250,97 +261,93 @@ class _ActivityTimerScreenState extends State<ActivityTimerScreen> {
                 Text(
                   'Instructions',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primary,
-                      ),
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
+                  ),
                 ),
                 const SizedBox(height: 12),
-                ...widget.module.instructions
-                    .asMap()
-                    .entries
-                    .map((entry) {
+                ...widget.module.instructions.asMap().entries.map((entry) {
                   final index = entry.key;
                   final step = entry.value;
                   final isActive = index == _currentStep;
                   final isDone = index < _currentStep;
 
                   return GestureDetector(
-                    onTap: () =>
-                        setState(() => _currentStep = index),
+                    onTap: () => setState(() => _currentStep = index),
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: isActive
-                            ? AppColors.primary
-                                .withValues(alpha: 0.1)
-                            : Colors.transparent,
+                        color:
+                            isActive
+                                ? AppColors.primary.withValues(alpha: 0.1)
+                                : Colors.transparent,
                         borderRadius: BorderRadius.circular(12),
-                        border: isActive
-                            ? Border.all(
-                                color: AppColors.primary
-                                    .withValues(alpha: 0.3))
-                            : null,
+                        border:
+                            isActive
+                                ? Border.all(
+                                  color: AppColors.primary.withValues(
+                                    alpha: 0.3,
+                                  ),
+                                )
+                                : null,
                       ),
                       child: Row(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Container(
                             width: 28,
                             height: 28,
                             decoration: BoxDecoration(
-                              color: isDone
-                                  ? AppColors.success
-                                  : (isActive
-                                      ? AppColors.primary
-                                      : (isDark
-                                          ? AppColors
-                                              .darkSurfaceVariant
-                                          : AppColors
-                                              .surfaceVariant)),
+                              color:
+                                  isDone
+                                      ? AppColors.success
+                                      : (isActive
+                                          ? AppColors.primary
+                                          : (isDark
+                                              ? AppColors.darkSurfaceVariant
+                                              : AppColors.surfaceVariant)),
                               shape: BoxShape.circle,
                             ),
                             child: Center(
-                              child: isDone
-                                  ? const Icon(
-                                      Icons.check_rounded,
-                                      color: Colors.white,
-                                      size: 16,
-                                    )
-                                  : Text(
-                                      '${index + 1}',
-                                      style: TextStyle(
-                                        color: isActive
-                                            ? Colors.white
-                                            : (isDark
-                                                ? AppColors
-                                                    .darkTextSecondary
-                                                : AppColors
-                                                    .textSecondary),
-                                        fontSize: 12,
-                                        fontWeight:
-                                            FontWeight.w600,
+                              child:
+                                  isDone
+                                      ? const Icon(
+                                        Icons.check_rounded,
+                                        color: Colors.white,
+                                        size: 16,
+                                      )
+                                      : Text(
+                                        '${index + 1}',
+                                        style: TextStyle(
+                                          color:
+                                              isActive
+                                                  ? Colors.white
+                                                  : (isDark
+                                                      ? AppColors
+                                                          .darkTextSecondary
+                                                      : AppColors
+                                                          .textSecondary),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
-                                    ),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
                               step,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyMedium
-                                  ?.copyWith(
-                                    fontWeight: isActive
+                              style: Theme.of(
+                                context,
+                              ).textTheme.bodyMedium?.copyWith(
+                                fontWeight:
+                                    isActive
                                         ? FontWeight.w600
                                         : FontWeight.w400,
-                                    decoration: isDone
-                                        ? TextDecoration
-                                            .lineThrough
-                                        : null,
-                                  ),
+                                decoration:
+                                    isDone ? TextDecoration.lineThrough : null,
+                              ),
                             ),
                           ),
                         ],
@@ -350,16 +357,12 @@ class _ActivityTimerScreenState extends State<ActivityTimerScreen> {
                 }),
 
                 // Next Step button
-                if (_currentStep <
-                    widget.module.instructions.length - 1)
+                if (_currentStep < widget.module.instructions.length - 1)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
                     child: TextButton.icon(
-                      onPressed: () => setState(
-                          () => _currentStep++),
-                      icon: const Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 18),
+                      onPressed: () => setState(() => _currentStep++),
+                      icon: const Icon(Icons.arrow_forward_rounded, size: 18),
                       label: const Text('Next Step'),
                       style: TextButton.styleFrom(
                         foregroundColor: AppColors.primary,
@@ -371,7 +374,8 @@ class _ActivityTimerScreenState extends State<ActivityTimerScreen> {
           ).animate().fadeIn(delay: 300.ms, duration: 500.ms),
 
           // Safety note
-          if (widget.module.safetyNotes != null && widget.module.safetyNotes!.isNotEmpty) ...[
+          if (widget.module.safetyNotes != null &&
+              widget.module.safetyNotes!.isNotEmpty) ...[
             const SizedBox(height: 16),
             Container(
               width: double.infinity,
@@ -383,16 +387,18 @@ class _ActivityTimerScreenState extends State<ActivityTimerScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.warning_amber_rounded,
-                      color: AppColors.warning, size: 18),
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    color: AppColors.warning,
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       widget.module.safetyNotes!,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(fontSize: 12),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(fontSize: 12),
                     ),
                   ),
                 ],
@@ -412,25 +418,30 @@ class _ActivityTimerScreenState extends State<ActivityTimerScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF10B981), Color(0xFF2DD4A8)],
-                ),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color:
-                        AppColors.success.withValues(alpha: 0.3),
-                    blurRadius: 30,
-                    offset: const Offset(0, 10),
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF10B981), Color(0xFF2DD4A8)],
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.success.withValues(alpha: 0.3),
+                        blurRadius: 30,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: const Icon(Icons.celebration_rounded,
-                  color: Colors.white, size: 56),
-            ).animate().fadeIn(duration: 500.ms).scale(
+                  child: const Icon(
+                    Icons.celebration_rounded,
+                    color: Colors.white,
+                    size: 56,
+                  ),
+                )
+                .animate()
+                .fadeIn(duration: 500.ms)
+                .scale(
                   begin: const Offset(0.5, 0.5),
                   duration: 500.ms,
                   curve: Curves.easeOutBack,
@@ -438,10 +449,9 @@ class _ActivityTimerScreenState extends State<ActivityTimerScreen> {
             const SizedBox(height: 32),
             Text(
               'Activity Complete! 🎉',
-              style:
-                  Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             ).animate().fadeIn(delay: 300.ms, duration: 400.ms),
             const SizedBox(height: 8),
             Text(
@@ -461,7 +471,9 @@ class _ActivityTimerScreenState extends State<ActivityTimerScreen> {
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 14),
+                      horizontal: 24,
+                      vertical: 14,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -477,7 +489,9 @@ class _ActivityTimerScreenState extends State<ActivityTimerScreen> {
                     foregroundColor: AppColors.success,
                     side: const BorderSide(color: AppColors.success),
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 14),
+                      horizontal: 24,
+                      vertical: 14,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),

@@ -50,7 +50,8 @@ class GameSessionModel {
       maxScore: map['maxScore']?.toInt() ?? 0,
       totalMoves: map['totalMoves']?.toInt() ?? 0,
       durationSeconds: map['durationSeconds']?.toInt() ?? 0,
-      completedAt: (map['completedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      completedAt:
+          (map['completedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       additionalMetrics: map['additionalMetrics'] as Map<String, dynamic>?,
     );
   }
