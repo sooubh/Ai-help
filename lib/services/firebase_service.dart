@@ -221,15 +221,19 @@ class FirebaseService {
     final userDoc = _firestore.collection('users').doc(uid);
 
     Future<void> deleteSubcollection(String subcollection) async {
-      while (true) {
-        final snapshot = await userDoc.collection(subcollection).limit(500).get();
-        if (snapshot.docs.isEmpty) break;
+      try {
+        while (true) {
+          final snapshot = await userDoc.collection(subcollection).limit(500).get();
+          if (snapshot.docs.isEmpty) break;
 
-        final batch = _firestore.batch();
-        for (final doc in snapshot.docs) {
-          batch.delete(doc.reference);
+          final batch = _firestore.batch();
+          for (final doc in snapshot.docs) {
+            batch.delete(doc.reference);
+          }
+          await batch.commit();
         }
-        await batch.commit();
+      } catch (e) {
+        throw Exception('Failed deleting subcollection "$subcollection": $e');
       }
     }
 

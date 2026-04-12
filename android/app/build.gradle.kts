@@ -18,11 +18,14 @@ if (keyPropertiesFile.exists()) {
     keyProperties.load(FileInputStream(keyPropertiesFile))
 }
 val requiredSigningKeys = listOf("keyAlias", "keyPassword", "storeFile", "storePassword")
+val missingSigningKeys = requiredSigningKeys.filter { key ->
+    (keyProperties[key] as? String)?.isNotBlank() != true
+}
 val hasReleaseSigning = requiredSigningKeys.all { key ->
     (keyProperties[key] as? String)?.isNotBlank() == true
 }
 if (keyPropertiesFile.exists() && !hasReleaseSigning) {
-    throw GradleException("key.properties exists but is missing required signing keys: $requiredSigningKeys")
+    throw GradleException("key.properties exists but is missing required signing keys: $missingSigningKeys")
 }
 
 android {
