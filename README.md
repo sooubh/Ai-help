@@ -145,7 +145,7 @@ lib/
 
 ```bash
 # Clone the repo
-git clone <repository-url>
+git clone https://github.com/sooubh/Ai-help.git
 cd Ai-help
 
 # Install dependencies
@@ -256,4 +256,4 @@ This project is private and not licensed for public use.
 Built by **Sourabh Singh** (`git log` author metadata).
 
 - GitHub: https://github.com/sooubh
-- Contact: sourabh3527@gmail.com
+- Contact: via GitHub profile
