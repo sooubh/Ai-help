@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -24,6 +26,7 @@ class ChildRepository {
     'diagnosis',
     'therapyNotes',
     'progressLogs',
+    'medicalNotes',
   ];
 
   CollectionReference<Map<String, dynamic>> _childrenCollection(String uid) {
@@ -74,7 +77,7 @@ class ChildRepository {
       return;
     }
 
-    await _encryptionService.initialize();
+    unawaited(_encryptionService.initialize());
     yield* _childrenCollection(uid)
         .orderBy('createdAt', descending: false)
         .snapshots()

@@ -53,20 +53,20 @@ class EncryptionService {
   /// Encrypts plain text and returns a Base64 ciphertext.
   /// Returns the original input for null/empty values.
   String encryptText(String plainText) {
-    if (plainText.trim().isEmpty) return plainText;
+    if (plainText.isEmpty) return plainText;
     if (_encrypter == null || _iv == null) return plainText;
 
     try {
       return _encrypter!.encrypt(plainText, iv: _iv!).base64;
-    } catch (_) {
-      return plainText;
+    } catch (e) {
+      throw StateError('Encryption failed: $e');
     }
   }
 
   /// Decrypts a Base64 ciphertext and returns plain text.
   /// Returns the original input for null/empty values or decryption failures.
   String decryptText(String encryptedText) {
-    if (encryptedText.trim().isEmpty) return encryptedText;
+    if (encryptedText.isEmpty) return encryptedText;
     if (_encrypter == null || _iv == null) return encryptedText;
 
     try {

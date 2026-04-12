@@ -30,10 +30,6 @@ class FirebaseService {
   List<ChildProfileModel>? _cachedChildProfiles;
   final Map<String, List<Map<String, dynamic>>> _cachedDailyPlans = {};
 
-  FirebaseService() {
-    _encryptionService.initialize();
-  }
-
   /// Clear all cache (useful on logout or sign-in)
   void clearCache() {
     _cachedUser = null;
