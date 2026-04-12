@@ -1,4 +1,7 @@
+// Run manually: dart scripts/fetch_models.dart
+// Not a test file — do not place in test/
 // ignore_for_file: avoid_print
+
 import 'dart:convert';
 import 'dart:io';
 

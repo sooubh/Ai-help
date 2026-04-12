@@ -1,4 +1,7 @@
+// Run manually: dart scripts/list_models.dart
+// Not a test file — do not place in test/
 // ignore_for_file: avoid_print
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
