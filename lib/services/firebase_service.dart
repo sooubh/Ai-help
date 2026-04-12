@@ -1007,6 +1007,9 @@ class FirebaseService {
     // Support legacy request payloads while we standardize to `patientUid`.
     final patientUid =
         firstNonEmptyString(['patientUid', 'parentUid', 'userId']) ?? '';
+    if (approve && (doctorId.isEmpty || patientUid.isEmpty)) {
+      throw Exception('Approved request missing doctorId or patientUid');
+    }
 
     final batch = _firestore.batch();
     batch.update(requestRef, {
@@ -1014,7 +1017,7 @@ class FirebaseService {
       'updatedAt': FieldValue.serverTimestamp(),
     });
 
-    if (approve && doctorId.isNotEmpty && patientUid.isNotEmpty) {
+    if (approve) {
       final doctorRef = _firestore.collection('doctors').doc(doctorId);
       batch.set(doctorRef, {
         'patientIds': FieldValue.arrayUnion([patientUid]),
