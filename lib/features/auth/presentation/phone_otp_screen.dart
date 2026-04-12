@@ -230,6 +230,11 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
   }
 
   Widget _buildOtpView(bool isDark) {
+    final boxWidth = ((MediaQuery.of(context).size.width - 96) / 6).clamp(
+      40.0,
+      56.0,
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -277,7 +282,7 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(6, (index) {
             return Container(
-              width: 48,
+              width: boxWidth,
               height: 56,
               margin: EdgeInsets.only(
                 right: index < 5 ? 8 : 0,

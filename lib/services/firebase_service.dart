@@ -986,9 +986,36 @@ class FirebaseService {
   /// Respond to a patient connection request.
   Future<void> respondToDoctorRequest(String requestId, bool approve) async {
     final status = approve ? 'approved' : 'declined';
-    await _firestore.collection('doctor_requests').doc(requestId).update({
+    final requestRef = _firestore.collection('doctor_requests').doc(requestId);
+    final requestSnap = await requestRef.get();
+    if (!requestSnap.exists || requestSnap.data() == null) {
+      throw Exception('Doctor request not found');
+    }
+
+    final requestData = requestSnap.data()!;
+    final doctorId = (requestData['doctorId'] ?? '').toString();
+    final patientUid =
+        (requestData['patientUid'] ??
+                requestData['parentUid'] ??
+                requestData['userId'] ??
+                '')
+            .toString();
+
+    final batch = _firestore.batch();
+    batch.update(requestRef, {
       'status': status,
+      'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    if (approve && doctorId.isNotEmpty && patientUid.isNotEmpty) {
+      final doctorRef = _firestore.collection('doctors').doc(doctorId);
+      batch.set(doctorRef, {
+        'patientIds': FieldValue.arrayUnion([patientUid]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+
+    await batch.commit();
   }
 
   /// Fetch the current user's profile as a DoctorModel.
@@ -1018,26 +1045,47 @@ class FirebaseService {
     final uid = currentUser?.uid;
     if (uid == null) return [];
 
+    final doctorDoc = await _firestore.collection('doctors').doc(uid).get();
+    final patientIds = List<String>.from(doctorDoc.data()?['patientIds'] ?? []);
+    if (patientIds.isEmpty) return [];
+
+    List<List<String>> chunkList(List<String> items, int chunkSize) {
+      final chunks = <List<String>>[];
+      for (var i = 0; i < items.length; i += chunkSize) {
+        final end = (i + chunkSize < items.length) ? i + chunkSize : items.length;
+        chunks.add(items.sublist(i, end));
+      }
+      return chunks;
+    }
+
+    final idChunks = chunkList(patientIds, 30);
+    final parentSnapshots = await Future.wait(
+      idChunks.map(
+        (chunk) => _firestore
+            .collection('users')
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get(),
+      ),
+    );
+
+    final parentDocs = parentSnapshots.expand((snapshot) => snapshot.docs).toList();
     final patients = <Map<String, dynamic>>[];
 
-    // Query all parent users
-    final parentSnapshot =
-        await _firestore
+    final childrenSnapshots = await Future.wait(
+      parentDocs.map(
+        (parentDoc) => _firestore
             .collection('users')
-            .where('role', isEqualTo: 'parent')
-            .get();
+            .doc(parentDoc.id)
+            .collection('children')
+            .get(),
+      ),
+    );
 
-    for (final parentDoc in parentSnapshot.docs) {
+    for (var i = 0; i < parentDocs.length; i++) {
+      final parentDoc = parentDocs[i];
       final parentData = parentDoc.data();
       final parentUid = parentDoc.id;
-
-      // Get children for this parent
-      final childrenSnapshot =
-          await _firestore
-              .collection('users')
-              .doc(parentUid)
-              .collection('children')
-              .get();
+      final childrenSnapshot = childrenSnapshots[i];
 
       for (final childDoc in childrenSnapshot.docs) {
         final childData = childDoc.data();
