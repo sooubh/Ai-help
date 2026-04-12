@@ -230,8 +230,6 @@ class FirebaseService {
           batch.delete(doc.reference);
         }
         await batch.commit();
-
-        if (snapshot.docs.length < 500) break;
       }
     }
 
@@ -244,7 +242,8 @@ class FirebaseService {
     await deleteSubcollection('children');
     await deleteSubcollection('chats');
 
-    // Note: For deeply nested subcollections, prefer a
+    // Note: This removes first-level documents in each listed subcollection.
+    // For deeply nested subcollections, prefer a
     // Firebase Cloud Function with recursive delete for completeness.
 
     // Delete user document

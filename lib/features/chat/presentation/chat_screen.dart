@@ -241,12 +241,13 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       );
     } catch (e) {
+      debugPrint('Failed to send chat message: $e');
       if (!mounted) return;
       setState(() {
         _isTyping = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send message. ${e.toString()}')),
+        const SnackBar(content: Text('Failed to send message. Please try again.')),
       );
       return;
     }
