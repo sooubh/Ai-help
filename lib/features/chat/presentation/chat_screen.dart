@@ -246,7 +246,7 @@ class _ChatScreenState extends State<ChatScreen> {
         _isTyping = false;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to send message. Please try again.')),
+        SnackBar(content: Text('Failed to send message. ${e.toString()}')),
       );
       return;
     }

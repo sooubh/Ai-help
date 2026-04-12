@@ -1,5 +1,6 @@
 import java.io.FileInputStream
 import java.util.Properties
+import org.gradle.api.GradleException
 
 plugins {
     id("com.android.application")
@@ -15,6 +16,13 @@ val keyProperties = Properties()
 val keyPropertiesFile = rootProject.file("key.properties")
 if (keyPropertiesFile.exists()) {
     keyProperties.load(FileInputStream(keyPropertiesFile))
+}
+val requiredSigningKeys = listOf("keyAlias", "keyPassword", "storeFile", "storePassword")
+val hasReleaseSigning = requiredSigningKeys.all { key ->
+    (keyProperties[key] as? String)?.isNotBlank() == true
+}
+if (keyPropertiesFile.exists() && !hasReleaseSigning) {
+    throw GradleException("key.properties exists but is missing required signing keys: $requiredSigningKeys")
 }
 
 android {
@@ -45,17 +53,21 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            keyAlias = keyProperties["keyAlias"] as String
-            keyPassword = keyProperties["keyPassword"] as String
-            storeFile = file(keyProperties["storeFile"] as String)
-            storePassword = keyProperties["storePassword"] as String
+        if (hasReleaseSigning) {
+            create("release") {
+                keyAlias = keyProperties["keyAlias"] as String
+                keyPassword = keyProperties["keyPassword"] as String
+                storeFile = file(keyProperties["storeFile"] as String)
+                storePassword = keyProperties["storePassword"] as String
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 }
