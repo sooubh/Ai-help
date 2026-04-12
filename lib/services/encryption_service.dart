@@ -54,7 +54,9 @@ class EncryptionService {
   /// Returns the original input for null/empty values.
   String encryptText(String plainText) {
     if (plainText.isEmpty) return plainText;
-    if (_encrypter == null || _iv == null) return plainText;
+    if (_encrypter == null || _iv == null) {
+      throw StateError('EncryptionService is not initialized.');
+    }
 
     try {
       return _encrypter!.encrypt(plainText, iv: _iv!).base64;

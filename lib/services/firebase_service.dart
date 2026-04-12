@@ -215,12 +215,12 @@ class FirebaseService {
         clearCache();
         await _ensureEncryptionReady();
         final encryptedSigninPayload = _encryptParentProfileFields({
-          'uid': credential.user!.uid,
           'email': credential.user!.email ?? email.trim(),
           'displayName': credential.user!.displayName,
           'lastLoginAt': Timestamp.fromDate(DateTime.now()),
         });
         await _firestore.collection('users').doc(credential.user!.uid).set({
+          'uid': credential.user!.uid,
           ...encryptedSigninPayload,
         }, SetOptions(merge: true));
       }
