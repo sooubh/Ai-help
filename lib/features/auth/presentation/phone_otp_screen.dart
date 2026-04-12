@@ -83,6 +83,13 @@ class _PhoneOtpScreenState extends State<PhoneOtpScreen> {
       return;
     }
 
+    if (_verificationId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Verification not ready. Please resend OTP.')),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {

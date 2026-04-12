@@ -218,29 +218,36 @@ class FirebaseService {
     final uid = currentUser?.uid;
     if (uid == null) throw Exception('User not authenticated');
 
-    // Delete child profiles subcollection
-    final children =
-        await _firestore
-            .collection('users')
-            .doc(uid)
-            .collection('children')
-            .get();
-    for (final doc in children.docs) {
-      await doc.reference.delete();
+    final userDoc = _firestore.collection('users').doc(uid);
+
+    Future<void> deleteSubcollection(String subcollection) async {
+      final snapshot = await userDoc.collection(subcollection).get();
+      if (snapshot.docs.isEmpty) return;
+
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
     }
 
-    // Delete chats subcollection
-    final chats =
-        await _firestore.collection('users').doc(uid).collection('chats').get();
-    for (final doc in chats.docs) {
-      await doc.reference.delete();
-    }
+    await deleteSubcollection('activity_logs');
+    await deleteSubcollection('mood_entries');
+    await deleteSubcollection('therapy_sessions');
+    await deleteSubcollection('notifications');
+    await deleteSubcollection('doctor_connections');
+    await deleteSubcollection('progress_data');
+    await deleteSubcollection('children');
+    await deleteSubcollection('chats');
+
+    // Note: For deeply nested subcollections, prefer a
+    // Firebase Cloud Function with recursive delete for completeness.
 
     // Delete user document
-    await _firestore.collection('users').doc(uid).delete();
+    await userDoc.delete();
 
     // Delete Firebase Auth account
-    await currentUser?.delete();
+    await _auth.currentUser?.delete();
   }
 
   // ─── User Profile ──────────────────────────────────────────

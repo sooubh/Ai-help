@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
 import '../models/child_profile_model.dart';
@@ -16,7 +17,8 @@ class ContextBuilderService {
     required String userId,
     ChildProfileModel? childProfile,
   }) async {
-    const key = 'context_data';
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? 'anonymous';
+    final key = 'context_data_$uid';
     final cache = LocalCacheService.instance;
 
     // Return cached context if fresh (10 min TTL)
