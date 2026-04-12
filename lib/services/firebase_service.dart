@@ -993,13 +993,20 @@ class FirebaseService {
     }
 
     final requestData = requestSnap.data()!;
-    final doctorId = (requestData['doctorId'] ?? '').toString();
+    String? firstNonEmptyString(List<String> keys) {
+      for (final key in keys) {
+        final value = requestData[key];
+        if (value is String && value.trim().isNotEmpty) {
+          return value.trim();
+        }
+      }
+      return null;
+    }
+
+    final doctorId = firstNonEmptyString(['doctorId']) ?? '';
+    // Support legacy request payloads while we standardize to `patientUid`.
     final patientUid =
-        (requestData['patientUid'] ??
-                requestData['parentUid'] ??
-                requestData['userId'] ??
-                '')
-            .toString();
+        firstNonEmptyString(['patientUid', 'parentUid', 'userId']) ?? '';
 
     final batch = _firestore.batch();
     batch.update(requestRef, {
@@ -1042,11 +1049,20 @@ class FirebaseService {
   /// Fetch all parent users and their children to build the doctor's patient list.
   /// Returns a list of maps, each containing the parent info and child profile.
   Future<List<Map<String, dynamic>>> getDoctorPatients() async {
+    const int firestoreWhereInLimit = 30;
     final uid = currentUser?.uid;
     if (uid == null) return [];
 
     final doctorDoc = await _firestore.collection('doctors').doc(uid).get();
-    final patientIds = List<String>.from(doctorDoc.data()?['patientIds'] ?? []);
+    final rawPatientIds = doctorDoc.data()?['patientIds'];
+    final patientIds =
+        rawPatientIds is List
+            ? rawPatientIds
+                .whereType<String>()
+                .map((id) => id.trim())
+                .where((id) => id.isNotEmpty)
+                .toList()
+            : <String>[];
     if (patientIds.isEmpty) return [];
 
     List<List<String>> chunkList(List<String> items, int chunkSize) {
@@ -1058,7 +1074,7 @@ class FirebaseService {
       return chunks;
     }
 
-    final idChunks = chunkList(patientIds, 30);
+    final idChunks = chunkList(patientIds, firestoreWhereInLimit);
     final parentSnapshots = await Future.wait(
       idChunks.map(
         (chunk) => _firestore

@@ -17,7 +17,8 @@ class ContextBuilderService {
     required String userId,
     ChildProfileModel? childProfile,
   }) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid ?? userId;
+    final fallbackUid = userId.trim().isNotEmpty ? userId.trim() : 'anonymous';
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? fallbackUid;
     final key = 'context_data_$uid';
     final cache = LocalCacheService.instance;
 
