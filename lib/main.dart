@@ -480,11 +480,13 @@ class CareAiApp extends StatefulWidget {
 
 class _CareAiAppState extends State<CareAiApp> with WidgetsBindingObserver {
   late final NotificationService _notificationService;
+  late final Future<bool> _profileFuture;
 
   @override
   void initState() {
     super.initState();
     _notificationService = NotificationService();
+    _profileFuture = _checkProfileCompletion();
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -539,7 +541,7 @@ class _CareAiAppState extends State<CareAiApp> with WidgetsBindingObserver {
           if (snapshot.hasData && snapshot.data != null) {
             // User is signed in — Check profile completion
             return FutureBuilder<bool>(
-              future: _checkProfileCompletion(),
+              future: _profileFuture,
               builder: (context, profileSnapshot) {
                 if (profileSnapshot.connectionState ==
                     ConnectionState.waiting) {

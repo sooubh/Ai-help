@@ -218,29 +218,43 @@ class FirebaseService {
     final uid = currentUser?.uid;
     if (uid == null) throw Exception('User not authenticated');
 
-    // Delete child profiles subcollection
-    final children =
-        await _firestore
-            .collection('users')
-            .doc(uid)
-            .collection('children')
-            .get();
-    for (final doc in children.docs) {
-      await doc.reference.delete();
+    final userDoc = _firestore.collection('users').doc(uid);
+
+    Future<void> deleteSubcollection(String subcollection) async {
+      try {
+        while (true) {
+          final snapshot = await userDoc.collection(subcollection).limit(500).get();
+          if (snapshot.docs.isEmpty) break;
+
+          final batch = _firestore.batch();
+          for (final doc in snapshot.docs) {
+            batch.delete(doc.reference);
+          }
+          await batch.commit();
+        }
+      } catch (e) {
+        throw Exception('Failed deleting subcollection "$subcollection": $e');
+      }
     }
 
-    // Delete chats subcollection
-    final chats =
-        await _firestore.collection('users').doc(uid).collection('chats').get();
-    for (final doc in chats.docs) {
-      await doc.reference.delete();
-    }
+    await deleteSubcollection('activity_logs');
+    await deleteSubcollection('mood_entries');
+    await deleteSubcollection('therapy_sessions');
+    await deleteSubcollection('notifications');
+    await deleteSubcollection('doctor_connections');
+    await deleteSubcollection('progress_data');
+    await deleteSubcollection('children');
+    await deleteSubcollection('chats');
+
+    // Note: This removes first-level documents in each listed subcollection.
+    // For deeply nested subcollections, prefer a
+    // Firebase Cloud Function with recursive delete for completeness.
 
     // Delete user document
-    await _firestore.collection('users').doc(uid).delete();
+    await userDoc.delete();
 
     // Delete Firebase Auth account
-    await currentUser?.delete();
+    await _auth.currentUser?.delete();
   }
 
   // ─── User Profile ──────────────────────────────────────────
@@ -972,9 +986,46 @@ class FirebaseService {
   /// Respond to a patient connection request.
   Future<void> respondToDoctorRequest(String requestId, bool approve) async {
     final status = approve ? 'approved' : 'declined';
-    await _firestore.collection('doctor_requests').doc(requestId).update({
+    final requestRef = _firestore.collection('doctor_requests').doc(requestId);
+    final requestSnap = await requestRef.get();
+    if (!requestSnap.exists || requestSnap.data() == null) {
+      throw Exception('Doctor request not found');
+    }
+
+    final requestData = requestSnap.data()!;
+    String? firstNonEmptyString(List<String> keys) {
+      for (final key in keys) {
+        final value = requestData[key];
+        if (value is String && value.trim().isNotEmpty) {
+          return value.trim();
+        }
+      }
+      return null;
+    }
+
+    final doctorId = firstNonEmptyString(['doctorId']) ?? '';
+    // Support legacy request payloads while we standardize to `patientUid`.
+    final patientUid =
+        firstNonEmptyString(['patientUid', 'parentUid', 'userId']) ?? '';
+    if (approve && (doctorId.isEmpty || patientUid.isEmpty)) {
+      throw Exception('Approved request missing doctorId or patientUid');
+    }
+
+    final batch = _firestore.batch();
+    batch.update(requestRef, {
       'status': status,
+      'updatedAt': FieldValue.serverTimestamp(),
     });
+
+    if (approve) {
+      final doctorRef = _firestore.collection('doctors').doc(doctorId);
+      batch.set(doctorRef, {
+        'patientIds': FieldValue.arrayUnion([patientUid]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+
+    await batch.commit();
   }
 
   /// Fetch the current user's profile as a DoctorModel.
@@ -1001,29 +1052,59 @@ class FirebaseService {
   /// Fetch all parent users and their children to build the doctor's patient list.
   /// Returns a list of maps, each containing the parent info and child profile.
   Future<List<Map<String, dynamic>>> getDoctorPatients() async {
+    const int firestoreWhereInLimit = 30;
     final uid = currentUser?.uid;
     if (uid == null) return [];
 
+    final doctorDoc = await _firestore.collection('doctors').doc(uid).get();
+    final rawPatientIds = doctorDoc.data()?['patientIds'];
+    final patientIds =
+        rawPatientIds is List
+            ? rawPatientIds
+                .whereType<String>()
+                .map((id) => id.trim())
+                .where((id) => id.isNotEmpty)
+                .toList()
+            : <String>[];
+    if (patientIds.isEmpty) return [];
+
+    List<List<String>> chunkList(List<String> items, int chunkSize) {
+      final chunks = <List<String>>[];
+      for (var i = 0; i < items.length; i += chunkSize) {
+        final end = (i + chunkSize < items.length) ? i + chunkSize : items.length;
+        chunks.add(items.sublist(i, end));
+      }
+      return chunks;
+    }
+
+    final idChunks = chunkList(patientIds, firestoreWhereInLimit);
+    final parentSnapshots = await Future.wait(
+      idChunks.map(
+        (chunk) => _firestore
+            .collection('users')
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get(),
+      ),
+    );
+
+    final parentDocs = parentSnapshots.expand((snapshot) => snapshot.docs).toList();
     final patients = <Map<String, dynamic>>[];
 
-    // Query all parent users
-    final parentSnapshot =
-        await _firestore
+    final childrenSnapshots = await Future.wait(
+      parentDocs.map(
+        (parentDoc) => _firestore
             .collection('users')
-            .where('role', isEqualTo: 'parent')
-            .get();
+            .doc(parentDoc.id)
+            .collection('children')
+            .get(),
+      ),
+    );
 
-    for (final parentDoc in parentSnapshot.docs) {
+    for (var i = 0; i < parentDocs.length; i++) {
+      final parentDoc = parentDocs[i];
       final parentData = parentDoc.data();
       final parentUid = parentDoc.id;
-
-      // Get children for this parent
-      final childrenSnapshot =
-          await _firestore
-              .collection('users')
-              .doc(parentUid)
-              .collection('children')
-              .get();
+      final childrenSnapshot = childrenSnapshots[i];
 
       for (final childDoc in childrenSnapshot.docs) {
         final childData = childDoc.data();

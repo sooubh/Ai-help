@@ -270,7 +270,10 @@ class NotificationService {
       await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
-          .update({'fcmToken': token});
+          .set({
+            'fcmToken': token,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
       AppLogger.info('NotificationService', 'FCM token persisted to Firestore');
     } catch (e, stack) {
       AppLogger.error(

@@ -1,28 +1,37 @@
-// ignore_for_file: avoid_print
 import 'package:flutter_test/flutter_test.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:care_ai/services/ai_service.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockAiService extends Mock implements AiService {}
 
 void main() {
-  testWidgets('Test Firebase AiService Response', (WidgetTester tester) async {
-    // In test environment we need this
-    TestWidgetsFlutterBinding.ensureInitialized();
+  group('AiService unit tests', () {
+    late MockAiService mockAiService;
 
-    // Initialize standard Firebase app, assumes standard default config
-    try {
-      await Firebase.initializeApp();
-    } catch (e) {
-      print('Firebase init error: $e');
-      // If we can't initialize firebase in plain tests, we might
-      // just pass or document for integration test context.
-    }
+    setUp(() {
+      mockAiService = MockAiService();
+    });
 
-    final aiService = AiService();
-    aiService.initialize();
+    test('getResponse returns expected string', () async {
+      when(
+        () => mockAiService.getResponse('Say hello!'),
+      ).thenAnswer((_) async => 'Hello! How can I help?');
 
-    final response = await aiService.getResponse("Say hello!");
-    print('Firebase AI Response: $response');
+      final result = await mockAiService.getResponse('Say hello!');
 
-    expect(response, isNotEmpty);
+      expect(result, equals('Hello! How can I help?'));
+      verify(() => mockAiService.getResponse('Say hello!')).called(1);
+    });
+
+    test('getResponse throws on empty input', () {
+      when(
+        () => mockAiService.getResponse(''),
+      ).thenThrow(ArgumentError('Input cannot be empty'));
+
+      expect(
+        () => mockAiService.getResponse(''),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
   });
 }

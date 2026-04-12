@@ -57,7 +57,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _initSpeech() async {
     _speechAvailable = await _speech.initialize();
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
   }
 
   void _toggleListening() async {
@@ -187,7 +188,8 @@ class _ChatScreenState extends State<ChatScreen> {
     // Add welcome message if no history
     if (_messages.isEmpty) {
       _messages.add(const _ChatMsg(text: AppStrings.chatWelcome, isUser: false));
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      setState(() {});
     }
   }
 
@@ -228,15 +230,27 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     // Save user message to Firestore
-    await _firebaseService.sendChatMessage(
-      ChatMessageModel(
-        id: '',
-        message: messageText,
-        sender: 'user',
-        timestamp: DateTime.now(),
-        imagePath: imagePath,
-      ),
-    );
+    try {
+      await _firebaseService.sendChatMessage(
+        ChatMessageModel(
+          id: '',
+          message: messageText,
+          sender: 'user',
+          timestamp: DateTime.now(),
+          imagePath: imagePath,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Failed to send chat message: $e');
+      if (!mounted) return;
+      setState(() {
+        _isTyping = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to send message. Please try again.')),
+      );
+      return;
+    }
 
     // Get AI response stream
     try {
@@ -1143,6 +1157,7 @@ class _FullScreenVideoPlayerState extends State<FullScreenVideoPlayer> {
   Future<void> _initializePlayer() async {
     _videoPlayerController = VideoPlayerController.file(File(widget.videoPath));
     await _videoPlayerController.initialize();
+    if (!mounted) return;
     
     _chewieController = ChewieController(
       videoPlayerController: _videoPlayerController,
@@ -1175,4 +1190,3 @@ class _FullScreenVideoPlayerState extends State<FullScreenVideoPlayer> {
     );
   }
 }
-
