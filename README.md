@@ -145,14 +145,14 @@ lib/
 
 ```bash
 # Clone the repo
-git clone https://github.com/sooubh/Ai-help.git
+git clone <repository-url>
 cd Ai-help
 
 # Install dependencies
 flutter pub get
 
 # Setup environment
-# Create .env manually (no .env.example in repo)
+# Create .env (see Environment Setup below)
 
 # Run the app
 flutter run
@@ -220,7 +220,6 @@ flutter test
 flutter test --coverage
 ```
 
-Note: In this environment, Flutter CLI was unavailable (`flutter: command not found`), so test pass/fail execution could not be re-verified here.
 
 ## 🐛 Known Issues
 
