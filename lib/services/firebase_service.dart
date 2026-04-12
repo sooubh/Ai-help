@@ -16,17 +16,23 @@ import '../models/post_model.dart';
 import '../models/therapy_session_model.dart';
 import '../core/utils/app_logger.dart';
 import '../core/errors/app_exceptions.dart';
+import 'encryption_service.dart';
 
 /// Centralized Firebase service handling Auth, Firestore reads/writes.
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  final EncryptionService _encryptionService = EncryptionService.instance;
   
   // ─── In-Memory Cache (Optimization) ───────────────────────────
   UserModel? _cachedUser;
   List<ChildProfileModel>? _cachedChildProfiles;
   final Map<String, List<Map<String, dynamic>>> _cachedDailyPlans = {};
+
+  FirebaseService() {
+    _encryptionService.initialize();
+  }
 
   /// Clear all cache (useful on logout or sign-in)
   void clearCache() {
@@ -70,6 +76,66 @@ class FirebaseService {
       );
       throw DataException('An unexpected error occurred: $e', originalError: e);
     }
+  }
+
+  Future<void> _ensureEncryptionReady() => _encryptionService.initialize();
+
+  Map<String, dynamic> _encryptParentProfileFields(Map<String, dynamic> data) {
+    return _encryptionService.encryptMap(data, [
+      'name',
+      'displayName',
+      'phone',
+      'address',
+    ]);
+  }
+
+  Map<String, dynamic> _decryptParentProfileFields(Map<String, dynamic> data) {
+    return _encryptionService.decryptMap(data, [
+      'name',
+      'displayName',
+      'phone',
+      'address',
+    ]);
+  }
+
+  Map<String, dynamic> _encryptChildProfileFields(Map<String, dynamic> data) {
+    return _encryptionService.encryptMap(data, [
+      'name',
+      'dateOfBirth',
+      'diagnosis',
+      'therapyNotes',
+      'progressLogs',
+      'medicalNotes',
+    ]);
+  }
+
+  Map<String, dynamic> _decryptChildProfileFields(Map<String, dynamic> data) {
+    return _encryptionService.decryptMap(data, [
+      'name',
+      'dateOfBirth',
+      'diagnosis',
+      'therapyNotes',
+      'progressLogs',
+      'medicalNotes',
+    ]);
+  }
+
+  Map<String, dynamic> _encryptDoctorNoteFields(Map<String, dynamic> data) {
+    return _encryptionService.encryptMap(data, [
+      'noteContent',
+      'patientName',
+      'content',
+      'childName',
+    ]);
+  }
+
+  Map<String, dynamic> _decryptDoctorNoteFields(Map<String, dynamic> data) {
+    return _encryptionService.decryptMap(data, [
+      'noteContent',
+      'patientName',
+      'content',
+      'childName',
+    ]);
   }
 
   // ─── Storage ──────────────────────────────────────────────────
@@ -130,10 +196,12 @@ class FirebaseService {
           createdAt: DateTime.now(),
           lastLoginAt: DateTime.now(),
         );
+        await _ensureEncryptionReady();
+        final encryptedUserMap = _encryptParentProfileFields(userModel.toMap());
         await _firestore
             .collection('users')
             .doc(user.uid)
-            .set(userModel.toMap());
+            .set(encryptedUserMap);
       }
       return user;
     }, operationName: 'signUp');
@@ -149,11 +217,15 @@ class FirebaseService {
 
       if (credential.user != null) {
         clearCache();
-        await _firestore.collection('users').doc(credential.user!.uid).set({
+        await _ensureEncryptionReady();
+        final encryptedSigninPayload = _encryptParentProfileFields({
           'uid': credential.user!.uid,
           'email': credential.user!.email ?? email.trim(),
           'displayName': credential.user!.displayName,
           'lastLoginAt': Timestamp.fromDate(DateTime.now()),
+        });
+        await _firestore.collection('users').doc(credential.user!.uid).set({
+          ...encryptedSigninPayload,
         }, SetOptions(merge: true));
       }
 
@@ -189,7 +261,8 @@ class FirebaseService {
             createdAt: DateTime.now(),
             lastLoginAt: DateTime.now(),
           );
-          await userDoc.set(userModel.toMap());
+          await _ensureEncryptionReady();
+          await userDoc.set(_encryptParentProfileFields(userModel.toMap()));
         } else {
           await userDoc.update({
             'lastLoginAt': Timestamp.fromDate(DateTime.now()),
@@ -269,7 +342,9 @@ class FirebaseService {
       try {
         final doc = await _firestore.collection('users').doc(uid).get();
         if (!doc.exists || doc.data() == null) return null;
-        _cachedUser = UserModel.fromMap(doc.data()!, uid);
+        await _ensureEncryptionReady();
+        final decrypted = _decryptParentProfileFields(doc.data()!);
+        _cachedUser = UserModel.fromMap(decrypted, uid);
         return _cachedUser;
       } catch (e) {
         // Fallback to cache if network fails
@@ -278,7 +353,9 @@ class FirebaseService {
             .doc(uid)
             .get(const GetOptions(source: Source.cache));
         if (!doc.exists || doc.data() == null) return null;
-        return UserModel.fromMap(doc.data()!, uid);
+        await _ensureEncryptionReady();
+        final decrypted = _decryptParentProfileFields(doc.data()!);
+        return UserModel.fromMap(decrypted, uid);
       }
     }, operationName: 'getUserProfile');
   }
@@ -288,7 +365,9 @@ class FirebaseService {
     final uid = currentUser?.uid;
     if (uid == null) throw Exception('User not authenticated');
 
-    await _firestore.collection('users').doc(uid).update(fields);
+    await _ensureEncryptionReady();
+    final encryptedFields = _encryptParentProfileFields(fields);
+    await _firestore.collection('users').doc(uid).update(encryptedFields);
     _cachedUser = null; // Invalidate cache
   }
 
@@ -304,13 +383,15 @@ class FirebaseService {
           .collection('users')
           .doc(uid)
           .collection('children');
+      await _ensureEncryptionReady();
+      final encryptedProfile = _encryptChildProfileFields(profile.toMap());
 
       if (profile.id != null) {
-        await collection.doc(profile.id).set(profile.toMap());
+        await collection.doc(profile.id).set(encryptedProfile);
         _cachedChildProfiles = null; // Invalidate cache
         return profile.id!;
       } else {
-        final doc = await collection.add(profile.toMap());
+        final doc = await collection.add(encryptedProfile);
         _cachedChildProfiles = null; // Invalidate cache
         return doc.id;
       }
@@ -332,8 +413,12 @@ class FirebaseService {
                 .collection('children')
                 .orderBy('createdAt', descending: false)
                 .get();
+        await _ensureEncryptionReady();
         _cachedChildProfiles = snapshot.docs
-            .map((doc) => ChildProfileModel.fromMap(doc.data(), doc.id))
+            .map((doc) => ChildProfileModel.fromMap(
+              _decryptChildProfileFields(doc.data()),
+              doc.id,
+            ))
             .toList();
         return _cachedChildProfiles!;
       } catch (e) {
@@ -344,8 +429,12 @@ class FirebaseService {
             .collection('children')
             .orderBy('createdAt', descending: false)
             .get(const GetOptions(source: Source.cache));
+        await _ensureEncryptionReady();
         return snapshot.docs
-            .map((doc) => ChildProfileModel.fromMap(doc.data(), doc.id))
+            .map((doc) => ChildProfileModel.fromMap(
+              _decryptChildProfileFields(doc.data()),
+              doc.id,
+            ))
             .toList();
       }
     }, operationName: 'getChildProfiles');
@@ -367,7 +456,11 @@ class FirebaseService {
                   .doc(childId)
                   .get();
           if (!doc.exists || doc.data() == null) return null;
-          return ChildProfileModel.fromMap(doc.data()!, doc.id);
+          await _ensureEncryptionReady();
+          return ChildProfileModel.fromMap(
+            _decryptChildProfileFields(doc.data()!),
+            doc.id,
+          );
         } catch (e) {
           final doc = await _firestore
               .collection('users')
@@ -376,7 +469,11 @@ class FirebaseService {
               .doc(childId)
               .get(const GetOptions(source: Source.cache));
           if (!doc.exists || doc.data() == null) return null;
-          return ChildProfileModel.fromMap(doc.data()!, doc.id);
+          await _ensureEncryptionReady();
+          return ChildProfileModel.fromMap(
+            _decryptChildProfileFields(doc.data()!),
+            doc.id,
+          );
         }
       }
 
@@ -913,11 +1010,13 @@ class FirebaseService {
   Future<void> sendGuidanceNote(GuidanceNoteModel note) async {
     final uid = currentUser?.uid;
     if (uid == null) throw Exception('Doctor not authenticated');
+    await _ensureEncryptionReady();
+    final encryptedNote = _encryptDoctorNoteFields(note.toMap());
 
     await _firestore
         .collection('guidance_notes')
         .doc(note.id)
-        .set(note.toMap());
+        .set(encryptedNote);
   }
 
   /// Appends a new activity directly to a child's assigned tasks queue.
@@ -950,7 +1049,10 @@ class FirebaseService {
         .map(
           (snapshot) =>
               snapshot.docs
-                  .map((doc) => GuidanceNoteModel.fromMap(doc.data(), doc.id))
+                  .map((doc) => GuidanceNoteModel.fromMap(
+                    _decryptDoctorNoteFields(doc.data()),
+                    doc.id,
+                  ))
                   .toList(),
         );
   }
@@ -1035,18 +1137,22 @@ class FirebaseService {
 
     final doc = await _firestore.collection('users').doc(uid).get();
     if (!doc.exists || doc.data() == null) return null;
-    return DoctorModel.fromMap(doc.data()!, uid);
+    await _ensureEncryptionReady();
+    final decrypted = _decryptParentProfileFields(doc.data()!);
+    return DoctorModel.fromMap(decrypted, uid);
   }
 
   /// Updates or creates the doctor's profile.
   Future<void> saveDoctorProfile(DoctorModel profile) async {
     final uid = currentUser?.uid;
     if (uid == null) throw Exception('Doctor not authenticated');
+    await _ensureEncryptionReady();
+    final encrypted = _encryptParentProfileFields(profile.toMap());
 
     await _firestore
         .collection('users')
         .doc(uid)
-        .set(profile.toMap(), SetOptions(merge: true));
+        .set(encrypted, SetOptions(merge: true));
   }
 
   /// Fetch all parent users and their children to build the doctor's patient list.
@@ -1089,6 +1195,7 @@ class FirebaseService {
 
     final parentDocs = parentSnapshots.expand((snapshot) => snapshot.docs).toList();
     final patients = <Map<String, dynamic>>[];
+    await _ensureEncryptionReady();
 
     final childrenSnapshots = await Future.wait(
       parentDocs.map(
@@ -1102,12 +1209,12 @@ class FirebaseService {
 
     for (var i = 0; i < parentDocs.length; i++) {
       final parentDoc = parentDocs[i];
-      final parentData = parentDoc.data();
+      final parentData = _decryptParentProfileFields(parentDoc.data());
       final parentUid = parentDoc.id;
       final childrenSnapshot = childrenSnapshots[i];
 
       for (final childDoc in childrenSnapshot.docs) {
-        final childData = childDoc.data();
+        final childData = _decryptChildProfileFields(childDoc.data());
         patients.add({
           'parentUid': parentUid,
           'parentName': parentData['displayName'] ?? 'Parent',
