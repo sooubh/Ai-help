@@ -70,6 +70,9 @@ android {
         release {
             if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("release")
+            } else {
+                // Keep local release builds installable when no custom keystore is configured.
+                signingConfig = signingConfigs.getByName("debug")
             }
         }
     }
