@@ -488,6 +488,7 @@ class _CareAiAppState extends State<CareAiApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     _notificationService = NotificationService();
+    _profileFuture = _checkProfileCompletion();
     WidgetsBinding.instance.addObserver(this);
   }
 

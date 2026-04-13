@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Environment configuration for CARE-AI.
@@ -30,8 +31,7 @@ class EnvConfig {
   /// Call this early in app startup to catch misconfigurations.
   static void validate() {
     if (!hasGeminiKey) {
-      // ignore: avoid_print
-      print(
+      debugPrint(
         '⚠️  GEMINI_API_KEY not set. '
         'Run with: flutter run --dart-define=GEMINI_API_KEY=your_key',
       );
