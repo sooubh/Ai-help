@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -480,7 +481,8 @@ class CareAiApp extends StatefulWidget {
 
 class _CareAiAppState extends State<CareAiApp> with WidgetsBindingObserver {
   late final NotificationService _notificationService;
-  late final Future<bool> _profileFuture;
+  User? _lastUser;
+  Future<Widget>? _signedInHomeFuture;
 
   @override
   void initState() {
@@ -498,6 +500,8 @@ class _CareAiAppState extends State<CareAiApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) return;
+
     if (state == AppLifecycleState.paused) {
       // App is in background — schedule inactivity reminders
       _notificationService.scheduleInactivityReminders();
@@ -539,16 +543,28 @@ class _CareAiAppState extends State<CareAiApp> with WidgetsBindingObserver {
           }
 
           if (snapshot.hasData && snapshot.data != null) {
-            // User is signed in — Check profile completion
-            return FutureBuilder<bool>(
-              future: _profileFuture,
+            final user = snapshot.data!;
+            if (_lastUser?.uid != user.uid || _signedInHomeFuture == null) {
+              _lastUser = user;
+              _signedInHomeFuture = _resolveSignedInHome();
+            }
+
+            // User is signed in — resolve destination screen once.
+            return FutureBuilder<Widget>(
+              future: _signedInHomeFuture,
               builder: (context, profileSnapshot) {
-                if (profileSnapshot.connectionState ==
-                    ConnectionState.waiting) {
+                if (profileSnapshot.connectionState == ConnectionState.waiting) {
                   return const _SplashScreen();
                 }
 
-                return const _SplashScreen();
+                if (profileSnapshot.hasError) {
+                  return _StartupFallbackScreen(
+                    message:
+                        'We had trouble loading your profile. Please restart the app.',
+                  );
+                }
+
+                return profileSnapshot.data ?? const OnboardingScreen();
               },
             );
           }
@@ -613,41 +629,37 @@ class _CareAiAppState extends State<CareAiApp> with WidgetsBindingObserver {
     );
   }
 
-  /// Checks if the user has completed their profile setup and navigates accordingly.
-  Future<bool> _checkProfileCompletion() async {
-    final nav = navigatorKey.currentState;
-    if (nav == null) return false;
-
+  /// Resolves the authenticated user's destination screen.
+  Future<Widget> _resolveSignedInHome() async {
     final service = FirebaseService();
-    final profile = await service.getUserProfile();
+    final profile = await service
+        .getUserProfile()
+        .timeout(const Duration(seconds: 8));
 
     if (profile == null) {
       await service.signOut();
-      return false;
+      return const OnboardingScreen();
     }
 
     if (profile.role == 'doctor') {
-      final docProfile = await service.getDoctorProfile();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (docProfile == null ||
-            docProfile.specialization.isEmpty ||
-            docProfile.name == 'Dr. Unknown') {
-          nav.pushReplacementNamed('/doctor-onboarding');
-        } else {
-          nav.pushReplacementNamed('/doctor-dashboard');
-        }
-      });
+      final docProfile = await service
+          .getDoctorProfile()
+          .timeout(const Duration(seconds: 8));
+      if (docProfile == null ||
+          docProfile.specialization.isEmpty ||
+          docProfile.name == 'Dr. Unknown') {
+        return const DoctorOnboardingScreen();
+      }
+      return const DoctorDashboardScreen();
     } else {
-      final children = await service.getChildProfiles();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (children.isEmpty) {
-          nav.pushReplacementNamed('/parent-onboarding');
-        } else {
-          nav.pushReplacementNamed('/home');
-        }
-      });
+      final children = await service
+          .getChildProfiles()
+          .timeout(const Duration(seconds: 8));
+      if (children.isEmpty) {
+        return const ParentOnboardingScreen();
+      }
+      return const HomeScreen();
     }
-    return true;
   }
 }
 
@@ -752,6 +764,32 @@ class _SplashScreen extends StatelessWidget {
                 ),
               ).animate().fadeIn(delay: 800.ms, duration: 400.ms),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StartupFallbackScreen extends StatelessWidget {
+  const _StartupFallbackScreen({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),
