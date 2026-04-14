@@ -89,10 +89,10 @@ class VoiceAssistantService extends ChangeNotifier {
     ChildProfileModel? childProfile,
     String? currentScreen,
   }) async {
-    if (!_micAvailable) {
-      _micAvailable = await _audioRecorder.hasPermission();
-    }
-    if (!_micAvailable) {
+    final hasMicPermission =
+        _micAvailable || await _audioRecorder.hasPermission();
+    _micAvailable = hasMicPermission;
+    if (!hasMicPermission) {
       _setError('Microphone permission denied.');
       return;
     }
