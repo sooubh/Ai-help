@@ -26,7 +26,7 @@ CARE-AI is a Flutter mobile app for parents/caregivers and doctors/therapists to
 - Context-aware responses using child profile + cached user context
 - In-chat tool calling for in-app navigation (`perform_app_action`)
 - Image and video-assisted chat analysis (video keyframe extraction)
-- Voice assistant via Gemini Live WebSocket audio model (`gemini-2.5-flash-native-audio-preview-12-2025`)
+- Voice assistant via Gemini Live WebSocket audio model (`gemini-3.1-flash-live-preview`)
 - AI-generated daily recommendations and therapy feedback
 
 ### 👨‍👩‍👧 Parenting / Child Features

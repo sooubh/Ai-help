@@ -36,6 +36,8 @@ class VoiceAssistantService extends ChangeNotifier {
 
   bool _micAvailable = false;
   bool get isConnected => _liveService.isConnected;
+  bool _isMicMuted = false;
+  bool get isMicMuted => _isMicMuted;
 
   bool get isActive => _session?.isActive ?? false;
   bool get isListening => _session?.status == VoiceStatus.listening;
@@ -88,6 +90,9 @@ class VoiceAssistantService extends ChangeNotifier {
     String? currentScreen,
   }) async {
     if (!_micAvailable) {
+      _micAvailable = await _audioRecorder.hasPermission();
+    }
+    if (!_micAvailable) {
       _setError('Microphone permission denied.');
       return;
     }
@@ -130,6 +135,10 @@ BEHAVIORAL RULES:
 ''';
 
     await _liveService.connect(systemInstruction);
+    if (!_liveService.isConnected) {
+      _setError('Unable to connect to live voice service. Please try again.');
+      return;
+    }
     notifyListeners(); // Safe — called after connect(), not during build
 
     // Context auto-refresh timer (every 5 mins)
@@ -204,17 +213,30 @@ BEHAVIORAL RULES:
   }
 
   Future<void> _startMicStreaming() async {
-    final stream = await _audioRecorder.startStream(
-      const RecordConfig(
-        encoder: AudioEncoder.pcm16bits,
-        sampleRate: 16000,
-        numChannels: 1,
-      ),
-    );
+    Stream<Uint8List> stream;
+    try {
+      stream = await _audioRecorder.startStream(
+        const RecordConfig(
+          encoder: AudioEncoder.pcm16bits,
+          sampleRate: 16000,
+          numChannels: 1,
+        ),
+      );
+    } catch (e, stack) {
+      AppLogger.error(
+        'VoiceAssistantService',
+        'Failed to start microphone stream',
+        e,
+        stack,
+      );
+      _setError('Could not access microphone stream.');
+      return;
+    }
 
     _micSub = stream.listen(
       (data) {
         _updateWaveform(data);
+        if (_isMicMuted) return;
         // Gate 1: don't send audio while AI is speaking.
         // Prevents the AI's own speaker output or ambient noise from
         // triggering Gemini's VAD and causing unwanted interruptions.
@@ -276,6 +298,16 @@ BEHAVIORAL RULES:
       _liveService.sendClientContent("Stop");
       _updateStatus(VoiceStatus.listening);
     }
+  }
+
+  void setMicMuted(bool muted) {
+    if (_isMicMuted == muted) return;
+    _isMicMuted = muted;
+    notifyListeners();
+  }
+
+  void toggleMicMuted() {
+    setMicMuted(!_isMicMuted);
   }
 
   void _handleFunctionCall(Map<String, dynamic> call) {
@@ -385,6 +417,7 @@ BEHAVIORAL RULES:
     await _audioPlayer.stop();
 
     _waveformAmplitudes.clear();
+    _isMicMuted = false;
     _session = null;
     _errorMessage = null;
     notifyListeners();
