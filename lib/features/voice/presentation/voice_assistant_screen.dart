@@ -24,7 +24,6 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
   late AnimationController _entranceController;
 
   bool _isInit = false;
-  bool _isMuted = false;
 
   Timer? _sessionTimer;
   Duration _sessionDuration = Duration.zero;
@@ -420,8 +419,9 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
   Widget _build12BarWaveform(List<double> amplitudes, VoiceStatus status) {
     final bool isSpeaking = status == VoiceStatus.speaking;
     final Color barColor = isSpeaking ? AppColors.primary : Colors.white;
+    final bool isMuted = _voiceService.isMicMuted;
     // Mute visual override
-    final bool showMuted = _isMuted && !isSpeaking;
+    final bool showMuted = isMuted && !isSpeaking;
 
     return RepaintBoundary(
       child: SizedBox(
@@ -485,6 +485,7 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
   }
 
   Widget _buildStatusSection(VoiceStatus status, bool isConnected) {
+    final bool isMuted = _voiceService.isMicMuted;
     Color pillColor;
     IconData pillIcon;
     String pillText;
@@ -519,7 +520,7 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
       }
     }
 
-    if (_isMuted && status == VoiceStatus.listening) {
+    if (isMuted && status == VoiceStatus.listening) {
       pillColor = Colors.orangeAccent;
       pillIcon = Icons.mic_off_rounded;
       pillText = 'Microphone Muted';
@@ -568,10 +569,10 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 300),
           child: Text(
-            _isMuted
+            isMuted
                 ? "Tap the mic icon to resume"
                 : "Speak naturally — I'm here to help",
-            key: ValueKey<bool>(_isMuted),
+            key: ValueKey<bool>(isMuted),
             style: const TextStyle(
               color: Colors.white54,
               fontSize: 14,
@@ -585,6 +586,7 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
 
   Widget _buildControls(VoiceStatus status) {
     final bool isSpeaking = status == VoiceStatus.speaking;
+    final bool isMuted = _voiceService.isMicMuted;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -593,12 +595,7 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
         GestureDetector(
           onTap: () {
             HapticFeedback.lightImpact();
-            setState(() {
-              _isMuted = !_isMuted;
-              // Note: Strictly to modify UI appearance as requested.
-              // True muting of microphone chunk sending would require
-              // modifying voice_assistant_service.dart, which is forbidden by rules.
-            });
+            _voiceService.toggleMicMuted();
           },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
@@ -606,14 +603,14 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
             height: 56,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _isMuted ? Colors.white24 : Colors.transparent,
+              color: isMuted ? Colors.white24 : Colors.transparent,
               border: Border.all(
-                color: _isMuted ? Colors.transparent : Colors.white54,
+                color: isMuted ? Colors.transparent : Colors.white54,
                 width: 2,
               ),
             ),
             child: Icon(
-              _isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+              isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
               color: Colors.white,
               size: 26,
             ),
