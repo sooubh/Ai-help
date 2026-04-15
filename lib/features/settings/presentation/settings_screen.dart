@@ -10,6 +10,7 @@ import '../../../core/constants/app_strings.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../services/firebase_service.dart';
 import '../../../services/notification_service.dart';
+import '../../../services/cache/sync_manager.dart';
 
 /// Settings screen — profile, theme, voice, notifications, privacy, logout.
 class SettingsScreen extends StatefulWidget {
@@ -418,6 +419,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                 );
                 if (confirm != true || !context.mounted) return;
+                await context.read<SyncManager>().stopSync();
                 await FirebaseService().signOut();
                 await Workmanager().cancelByUniqueName('care_ai_progress_update');
                 await NotificationService().cancelAll();

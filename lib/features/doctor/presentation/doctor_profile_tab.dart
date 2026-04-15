@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_gradients.dart';
 import '../../../models/doctor_model.dart';
 import '../../../services/firebase_service.dart';
+import '../../../services/cache/sync_manager.dart';
 
 /// Doctor profile tab showing doctor info and account actions.
 class DoctorProfileTab extends StatefulWidget {
@@ -46,6 +48,7 @@ class _DoctorProfileTabState extends State<DoctorProfileTab> {
   }
 
   void _logout() async {
+    await context.read<SyncManager>().stopSync();
     await _firebaseService.signOut();
     if (!mounted) return;
     Navigator.pushReplacementNamed(context, '/login');

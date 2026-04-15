@@ -19,7 +19,7 @@ class SmartDataRepository {
   // ═══════════════════════════════════════
 
   Future<UserModel?> getUserProfile(String uid) async {
-    const key = 'user_profile';
+    final key = 'user_profile_$uid';
 
     // Return cache if fresh
     if (_cache.isFresh(key)) {
@@ -51,7 +51,7 @@ class SmartDataRepository {
   // ═══════════════════════════════════════
 
   Future<List<ChildProfileModel>> getChildProfiles(String uid) async {
-    const key = 'child_profiles';
+    final key = 'child_profiles_$uid';
 
     if (_cache.isFresh(key)) {
       final cached = _cache.get<List<ChildProfileModel>>(

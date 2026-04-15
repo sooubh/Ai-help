@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -28,6 +29,7 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
   Timer? _sessionTimer;
   Duration _sessionDuration = Duration.zero;
   bool _hasStartedTimer = false;
+  bool _showDebugPanel = kDebugMode;
 
   @override
   void initState() {
@@ -68,13 +70,27 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
             ModalRoute.of(context)?.settings.name ?? 'voice_assistant';
         final args =
             ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-
-        await _voiceService.startLiveSession(
-          childProfile: args?['childProfile'],
-          currentScreen: currentRouteName,
-        );
+        try {
+          await _voiceService.startLiveSession(
+            childProfile: args?['childProfile'],
+            currentScreen: currentRouteName,
+          );
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to start voice session: $e')),
+          );
+        }
       }
     });
+  }
+
+  Future<void> _copyDebugDump() async {
+    await Clipboard.setData(ClipboardData(text: _voiceService.buildDebugDump()));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Voice debug info copied to clipboard.')),
+    );
   }
 
   void _onServiceChange() {
@@ -160,6 +176,7 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
           child: Column(
             children: [
               if (_voiceService.errorMessage != null) _buildErrorBanner(),
+              if (_showDebugPanel) _buildDebugPanel(),
 
               const Spacer(),
 
@@ -262,6 +279,23 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
         ],
       ),
       actions: [
+        IconButton(
+          tooltip: _showDebugPanel ? 'Hide debug info' : 'Show debug info',
+          icon: Icon(
+            _showDebugPanel ? Icons.bug_report : Icons.bug_report_outlined,
+            color: Colors.white70,
+          ),
+          onPressed: () {
+            setState(() {
+              _showDebugPanel = !_showDebugPanel;
+            });
+          },
+        ),
+        IconButton(
+          tooltip: 'Copy debug info',
+          icon: const Icon(Icons.copy_all_rounded, color: Colors.white70),
+          onPressed: _copyDebugDump,
+        ),
         if (_hasStartedTimer)
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
@@ -297,6 +331,95 @@ class _VoiceAssistantScreenState extends State<VoiceAssistantScreen>
             child: Text(
               _voiceService.errorMessage!,
               style: const TextStyle(color: Colors.white),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Copy debug info',
+            icon: const Icon(Icons.copy_rounded, color: Colors.white70),
+            onPressed: _copyDebugDump,
+          ),
+          IconButton(
+            tooltip: 'Dismiss error',
+            icon: const Icon(Icons.close_rounded, color: Colors.white70),
+            onPressed: _voiceService.clearError,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDebugPanel() {
+    final stats = _voiceService.debugStats;
+    final logs = _voiceService.debugEntries;
+    final visibleLogs = logs.length > 8
+        ? logs.sublist(logs.length - 8)
+        : logs;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.bug_report_rounded, color: Colors.amber, size: 18),
+              const SizedBox(width: 8),
+              const Text(
+                'Voice Debug',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                _voiceService.liveConnectionPhase.name,
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...stats.entries.map(
+            (entry) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 1),
+              child: Text(
+                '${entry.key}: ${entry.value}',
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Divider(color: Colors.white24, height: 1),
+          const SizedBox(height: 8),
+          const Text(
+            'Recent events',
+            style: TextStyle(color: Colors.white70, fontSize: 11),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 90,
+            child: ListView.builder(
+              itemCount: visibleLogs.length,
+              itemBuilder: (context, index) {
+                return Text(
+                  visibleLogs[index],
+                  style: const TextStyle(
+                    color: Colors.white60,
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                  ),
+                );
+              },
             ),
           ),
         ],

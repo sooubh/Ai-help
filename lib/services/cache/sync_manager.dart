@@ -77,7 +77,7 @@ class SyncManager {
       await _cache.invalidate('dashboard_data');
       await _cache.invalidate('mood_history_14');
       await _cache.invalidate('daily_plan_$today');
-      await _cache.invalidate('context_data');
+      await _cache.invalidate('context_data_$userId');
 
       // Pre-warm cache with fresh data
       await _repository.getDashboardData(userId);
@@ -135,15 +135,20 @@ class SyncManager {
       AppLogger.info('SyncManager', 'Daily Firebase update starting...');
 
       final cache = LocalCacheService.instance;
+      final today = DateTime.now().toIso8601String().substring(0, 10);
 
       final profileData = cache.get<Map<String, dynamic>>(
-        'user_profile', (j) => Map<String, dynamic>.from(j));
+        'user_profile_$userId', (j) => Map<String, dynamic>.from(j));
 
       final wellnessData = cache.get<List>(
-        'wellness_entries_7d', (j) => j as List);
+        'mood_history_14', (j) => j as List);
 
-      final planData = cache.get<Map<String, dynamic>>(
-        'daily_plan', (j) => Map<String, dynamic>.from(j));
+      final planData = cache.get<List<Map<String, dynamic>>>(
+        'daily_plan_$today',
+        (j) => List<Map<String, dynamic>>.from(
+          (j as List).map((e) => Map<String, dynamic>.from(e)),
+        ),
+      );
 
       final dashboardData = cache.get<Map<String, dynamic>>(
         'dashboard_data', (j) => Map<String, dynamic>.from(j));

@@ -17,6 +17,7 @@ import '../models/therapy_session_model.dart';
 import '../core/utils/app_logger.dart';
 import '../core/errors/app_exceptions.dart';
 import 'encryption_service.dart';
+import 'cache/local_cache_service.dart';
 
 /// Centralized Firebase service handling Auth, Firestore reads/writes.
 class FirebaseService {
@@ -35,6 +36,16 @@ class FirebaseService {
     _cachedUser = null;
     _cachedChildProfiles = null;
     _cachedDailyPlans.clear();
+  }
+
+  /// Clear persisted per-user cache safely.
+  /// Local cache may not be initialized in some test environments.
+  Future<void> _clearPersistentCacheSafe() async {
+    try {
+      await LocalCacheService.instance.clearUserData();
+    } catch (_) {
+      // Best-effort cleanup only.
+    }
   }
 
   /// Centralized exception handler for Firebase routines
@@ -213,6 +224,7 @@ class FirebaseService {
 
       if (credential.user != null) {
         clearCache();
+        await _clearPersistentCacheSafe();
         await _ensureEncryptionReady();
         final encryptedSigninPayload = _encryptParentProfileFields({
           'email': credential.user!.email ?? email.trim(),
@@ -245,6 +257,8 @@ class FirebaseService {
       final user = userCredential.user;
 
       if (user != null) {
+        clearCache();
+        await _clearPersistentCacheSafe();
         final userDoc = _firestore.collection('users').doc(user.uid);
         final docSnapshot = await userDoc.get();
 
@@ -278,6 +292,7 @@ class FirebaseService {
   /// Sign out (also signs out of Google).
   Future<void> signOut() async {
     clearCache();
+    await _clearPersistentCacheSafe();
     await GoogleSignIn().signOut();
     await _auth.signOut();
   }

@@ -55,6 +55,7 @@ class _GlobalVoiceOverlayState extends State<GlobalVoiceOverlay>
     // If the pill overlays the screen, taping it navigates back.
 
     final status = session?.status ?? VoiceStatus.idle;
+    final hasError = voiceService.errorMessage != null || status == VoiceStatus.error;
     final isListening = status == VoiceStatus.listening;
     final isProcessing = status == VoiceStatus.processing;
     final isSpeaking = status == VoiceStatus.speaking;
@@ -62,7 +63,10 @@ class _GlobalVoiceOverlayState extends State<GlobalVoiceOverlay>
     Color badgeColor;
     String statusText;
 
-    if (isListening) {
+    if (hasError) {
+      badgeColor = Colors.redAccent;
+      statusText = 'Voice Error';
+    } else if (isListening) {
       badgeColor = Colors.greenAccent;
       statusText = "Listening...";
     } else if (isProcessing) {

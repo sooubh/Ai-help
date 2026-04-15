@@ -199,9 +199,25 @@ void callbackDispatcher() {
       // ── 5c. Read child name ────────────────────────────────────────────────
       String childName = 'your child';
       try {
+        String? scopedChildProfilesKey;
+        try {
+          scopedChildProfilesKey = dataBox.keys
+              .whereType<String>()
+              .firstWhere(
+                (k) => k.startsWith('child_profiles_'),
+                orElse: () => '',
+              );
+          if (scopedChildProfilesKey.isEmpty) {
+            scopedChildProfilesKey = null;
+          }
+        } catch (_) {}
+
         // Try 'children_list' (spec key) then 'child_profiles' (actual key)
         final raw = (dataBox.get('children_list') ??
-                dataBox.get('child_profiles')) as String?;
+                dataBox.get('child_profiles') ??
+                (scopedChildProfilesKey != null
+                    ? dataBox.get(scopedChildProfilesKey)
+                    : null)) as String?;
         if (raw != null) {
           final list = jsonDecode(raw) as List<dynamic>;
           if (list.isNotEmpty) {
